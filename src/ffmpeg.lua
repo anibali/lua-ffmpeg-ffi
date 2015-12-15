@@ -27,6 +27,9 @@ local libavfilter = load_lib{
 -- Initialize libavformat
 libavformat.av_register_all()
 
+-- Initialize libavfilter
+libavfilter.avfilter_register_all()
+
 function M.new(path)
   local self = {}
 

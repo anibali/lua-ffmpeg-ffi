@@ -3,6 +3,7 @@ local ffi = require('ffi')
 -- Will not work for avformat version 58+, avutil 56+
 
 ffi.cdef[[
+
 typedef void AVCodec;
 typedef void AVInputFormat;
 typedef void AVDictionary;
@@ -382,6 +383,50 @@ void av_image_copy(uint8_t *dst_data[4], int dst_linesizes[4],
 
 void av_freep(void *ptr);
 
+char* av_strdup(const char *s);
 
 const char* av_get_pix_fmt_name(enum AVPixelFormat pix_fmt);
+
+typedef void AVFilter;
+typedef void AVFilterContext;
+typedef void AVFilterGraph;
+
+typedef struct AVFilterInOut {
+  char *name;
+  AVFilterContext *filter_ctx;
+  int pad_idx;
+  struct AVFilterInOut *next;
+} AVFilterInOut;
+
+void avfilter_register_all();
+const AVFilter* avfilter_get_by_name(const char *name);
+AVFilterInOut* avfilter_inout_alloc();
+void avfilter_inout_free(AVFilterInOut **inout);
+AVFilterGraph* avfilter_graph_alloc();
+void avfilter_graph_free(AVFilterGraph **graph);
+
+int avfilter_graph_create_filter(
+  AVFilterContext **filt_ctx,
+  const AVFilter *filt,
+  const char *name,
+  const char *args,
+  void *opaque,
+  AVFilterGraph *graph_ctx);
+
+int avfilter_graph_parse_ptr(
+  AVFilterGraph *graph,
+  const char *filters,
+  AVFilterInOut **inputs,
+  AVFilterInOut **outputs,
+  void *log_ctx);
+
+int avfilter_graph_config(AVFilterGraph *graphctx, void *log_ctx);
+
+int av_opt_set_bin(
+  void *obj,
+  const char *name,
+  const uint8_t *val,
+  int size,
+  int search_flags);
+
 ]]
