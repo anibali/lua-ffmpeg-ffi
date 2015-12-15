@@ -29,4 +29,52 @@ describe('monad', function()
       assert.spy(bound_function).was.called()
     end)
   end)
+
+  describe('Either', function()
+    describe('when successful', function()
+      local either
+      local catch_function
+      local bound_function
+
+      before_each(function()
+        either = monad.Either()
+        catch_function = spy.new(function() end)
+        bound_function = spy.new(function() end)
+        either.lift('do_something', bound_function)
+      end)
+
+      it('should not call catch function callback', function()
+        either:success('Some value'):catch(catch_function)
+        assert.spy(catch_function).was_not.called()
+      end)
+
+      it('should call bound function', function()
+        either:success('Some value'):do_something()
+        assert.spy(bound_function).was.called()
+      end)
+    end)
+
+    describe('when not successful', function()
+      local either
+      local catch_function
+      local bound_function
+
+      before_each(function()
+        either = monad.Either()
+        catch_function = spy.new(function() end)
+        bound_function = spy.new(function() end)
+        either.lift('do_something', bound_function)
+      end)
+
+      it('should call catch function callback', function()
+        either:error('An error message'):catch(catch_function)
+        assert.spy(catch_function).was.called()
+      end)
+
+      it('should not call bound function', function()
+        either:error('An error message'):do_something()
+        assert.spy(bound_function).was_not.called()
+      end)
+    end)
+  end)
 end)

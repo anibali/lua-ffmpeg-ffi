@@ -10,8 +10,8 @@ function M.new(modifier)
   local function unit_call(self, value)
     local monad = {}
     setmetatable(monad, {__index = proto})
-    monad.bind = function(func)
-      func(value)
+    monad.bind = function(func, name, ...)
+      func(value, ...)
     end
     if modifier ~= nil then
       value = modifier(monad, value)
@@ -26,15 +26,15 @@ function M.new(modifier)
   end
 
   unit.lift_value = function(name, func)
-    proto[name] = function(self)
-      return self.bind(func)
+    proto[name] = function(self, ...)
+      return self.bind(func, name, ...)
     end
     return unit
   end
 
   unit.lift = function(name, func)
-    proto[name] = function(self)
-      local result = self.bind(func)
+    proto[name] = function(self, ...)
+      local result = self.bind(func, name, ...)
       if result and result.is_monad then
         return result
       else
@@ -59,6 +59,37 @@ function M.Maybe()
   end)
 
   return maybe
+end
+
+function M.Either()
+  local either = M.new(function(monad, value)
+    monad.bind = function(func, name, ...)
+      if (name == 'catch') == monad.is_success then
+        return monad
+      else
+        return func(value, ...)
+      end
+    end
+    return value
+  end)
+
+  either.lift('catch', function(value, callback)
+    callback(value)
+  end)
+
+  function either:success(value)
+    local monad = either(value)
+    monad.is_success = true
+    return monad
+  end
+
+  function either:error(value)
+    local monad = either(value)
+    monad.is_success = false
+    return monad
+  end
+
+  return either
 end
 
 return M

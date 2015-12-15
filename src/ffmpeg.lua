@@ -34,6 +34,7 @@ libavfilter.avfilter_register_all()
 
 function M.new(path)
   local self = {}
+  setmetatable(self, {__index = Video})
 
   self.format_context = ffi.new('AVFormatContext*[1]')
   if libavformat.avformat_open_input(self.format_context, path, nil, nil) < 0 then
@@ -68,8 +69,12 @@ function M.new(path)
   -- -- Print format info
   -- libavformat.av_dump_format(self.format_context[0], 0, path, 0)
 
-  -- INIT FILTERS
+  self:init_filters('gray', 'scale=80:24,hflip')
 
+  return self
+end
+
+function Video:init_filters(pixel_format_name, filterchain)
   local buffersrc = libavfilter.avfilter_get_by_name('buffer');
   local buffersink = libavfilter.avfilter_get_by_name('buffersink');
   local outputs = ffi.new('AVFilterInOut*[1]', libavfilter.avfilter_inout_alloc());
@@ -104,7 +109,11 @@ function M.new(path)
     error('Failed to create buffer sink')
   end
 
-  local pix_fmts = ffi.new('enum AVPixelFormat[1]', {libavutil.AV_PIX_FMT_GRAY8})
+  local pix_fmt = libavutil.av_get_pix_fmt(pixel_format_name)
+  if pix_fmt == libavutil.AV_PIX_FMT_NONE then
+    error('Invalid pixel format name: ' .. pixel_format_name)
+  end
+  local pix_fmts = ffi.new('enum AVPixelFormat[1]', {pix_fmt})
   if libavutil.av_opt_set_bin(buffersink_context[0],
     'pix_fmts', ffi.cast('const unsigned char*', pix_fmts),
     1 * ffi.sizeof('enum AVPixelFormat'), AV_OPT_SEARCH_CHILDREN) < 0
@@ -121,9 +130,7 @@ function M.new(path)
   inputs[0].pad_idx     = 0;
   inputs[0].next        = nil;
 
-  -- https://libav.org/documentation/libavfilter.html#Video-Filters
-  local filter_string = 'scale=80:24,hflip'
-  if libavfilter.avfilter_graph_parse_ptr(filter_graph[0], filter_string,
+  if libavfilter.avfilter_graph_parse_ptr(filter_graph[0], filterchain,
     inputs, outputs, nil) < 0
   then
     error('avfilter_graph_parse_ptr failed')
@@ -136,11 +143,6 @@ function M.new(path)
   self.filter_graph = filter_graph
   self.buffersrc_context = buffersrc_context
   self.buffersink_context = buffersink_context
-
-  -- END INIT FILTERS
-
-  setmetatable(self, {__index = Video})
-  return self
 end
 
 -- Get video duration in seconds
