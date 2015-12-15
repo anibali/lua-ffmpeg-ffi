@@ -4,6 +4,8 @@ local ffi = require('ffi')
 
 ffi.cdef[[
 
+#pragma pack(push, 4)
+
 typedef void AVCodec;
 typedef void AVInputFormat;
 typedef void AVDictionary;
@@ -160,10 +162,56 @@ typedef struct AVPacket {
   AVPacketSideData *side_data;
   int side_data_elems;
   int64_t duration;
+  void (*destruct)(struct AVPacket *); // Deprecated
+  void *priv; // Deprecated
   int64_t pos;
   int64_t convergence_duration;
-  int64_t __padding_to_stop_random_lua_segfault__;
 } AVPacket;
+
+typedef struct AVFrame {
+  uint8_t *data[8];
+  int linesize[8];
+  uint8_t **extended_data;
+  int width, height;
+  int nb_samples;
+  int format;
+  int key_frame;
+  enum AVPictureType pict_type;
+  AVRational sample_aspect_ratio;
+  int64_t pts;
+  int64_t pkt_pts;
+  int64_t pkt_dts;
+  int coded_picture_number;
+  int display_picture_number;
+  int quality;
+  void *opaque;
+  uint64_t error[8];
+  int repeat_pict;
+  int interlaced_frame;
+  int top_field_first;
+  int palette_has_changed;
+  int64_t reordered_opaque;
+  int sample_rate;
+  uint64_t channel_layout;
+  AVBufferRef *buf[8];
+  AVBufferRef **extended_buf;
+  int        nb_extended_buf;
+  AVFrameSideData **side_data;
+  int            nb_side_data;
+  int flags;
+  enum AVColorRange color_range;
+  enum AVColorPrimaries color_primaries;
+  enum AVColorTransferCharacteristic color_trc;
+  enum AVColorSpace colorspace;
+  enum AVChromaLocation chroma_location;
+  int64_t best_effort_timestamp;
+  int64_t pkt_pos;
+  int64_t pkt_duration;
+  AVDictionary *metadata;
+  int decode_error_flags;
+  int channels;
+  int pkt_size;
+} AVFrame;
 
 typedef struct AVCodecContext {
   const AVClass *av_class;
@@ -192,6 +240,29 @@ typedef struct AVCodecContext {
   int coded_width, coded_height;
   int gop_size;
   enum AVPixelFormat pix_fmt;
+  int me_method; // Deprecated
+  void (*draw_horiz_band)(struct AVCodecContext *s,
+                          const AVFrame *src, int offset[8],
+                          int y, int type, int height);
+  enum AVPixelFormat (*get_format)(struct AVCodecContext *s, const enum AVPixelFormat * fmt);
+  int max_b_frames;
+  float b_quant_factor;
+  int rc_strategy; // Deprecated
+  int b_frame_strategy;
+  float b_quant_offset;
+  int has_b_frames;
+  int mpeg_quant;
+  float i_quant_factor;
+  float i_quant_offset;
+  float lumi_masking;
+  float temporal_cplx_masking;
+  float spatial_cplx_masking;
+  float p_masking;
+  float dark_masking;
+  int slice_count;
+  int prediction_method;
+  int *slice_offset;
+  AVRational sample_aspect_ratio;
 
   // SNIP
 } AVCodecContext;
@@ -295,51 +366,6 @@ typedef struct AVFormatContext {
   int (*open_cb)(struct AVFormatContext *s, AVIOContext **p, const char *url, int flags, const AVIOInterruptCB *int_cb, AVDictionary **options);
 } AVFormatContext;
 
-typedef struct AVFrame {
-  uint8_t *data[8];
-  int linesize[8];
-  uint8_t **extended_data;
-  int width, height;
-  int nb_samples;
-  int format;
-  int key_frame;
-  enum AVPictureType pict_type;
-  AVRational sample_aspect_ratio;
-  int64_t pts;
-  int64_t pkt_pts;
-  int64_t pkt_dts;
-  int coded_picture_number;
-  int display_picture_number;
-  int quality;
-  void *opaque;
-  uint64_t error[8];
-  int repeat_pict;
-  int interlaced_frame;
-  int top_field_first;
-  int palette_has_changed;
-  int64_t reordered_opaque;
-  int sample_rate;
-  uint64_t channel_layout;
-  AVBufferRef *buf[8];
-  AVBufferRef **extended_buf;
-  int        nb_extended_buf;
-  AVFrameSideData **side_data;
-  int            nb_side_data;
-  int flags;
-  enum AVColorRange color_range;
-  enum AVColorPrimaries color_primaries;
-  enum AVColorTransferCharacteristic color_trc;
-  enum AVColorSpace colorspace;
-  enum AVChromaLocation chroma_location;
-  int64_t best_effort_timestamp;
-  int64_t pkt_pos;
-  int64_t pkt_duration;
-  AVDictionary *metadata;
-  int decode_error_flags;
-  int channels;
-  int pkt_size;
-} AVFrame;
-
 void av_register_all();
 AVFormatContext* avformat_alloc_context();
 unsigned avformat_version();
@@ -387,6 +413,8 @@ char* av_strdup(const char *s);
 
 const char* av_get_pix_fmt_name(enum AVPixelFormat pix_fmt);
 
+void avcodec_string(char *buf, int buf_size, AVCodecContext *enc, int encode);
+
 typedef void AVFilter;
 typedef void AVFilterContext;
 typedef void AVFilterGraph;
@@ -428,5 +456,7 @@ int av_opt_set_bin(
   const uint8_t *val,
   int size,
   int search_flags);
+
+#pragma pack(pop)
 
 ]]
