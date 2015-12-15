@@ -35,9 +35,9 @@ describe("ffmpeg", function()
     -- it("ascii video fun", function()
     --   local i = 0
     --   io.write('\027[H\027[2J')
-    --   video:each_frame(function(a, b)
-    --     io.write(video:image_to_ascii(a, b))
-    --     os.execute('sleep 1')
+    --   video:each_frame(function(frame)
+    --     io.write(video:image_to_ascii(frame))
+    --     -- os.execute('sleep 1')
     --     i = i + 1
     --   end)
     -- end)

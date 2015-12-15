@@ -1,7 +1,19 @@
 local ffi = require('ffi')
 
--- Will not work for avformat version 58+, avutil 56+
+function script_path()
+   local str = debug.getinfo(2, "S").source:sub(2)
+   return str:match("(.*/)")
+end
 
+-- Preprocess header files to get C declarations
+local file = io.popen('cpp -P -w -x c ' .. script_path() .. '/includes.h')
+local def = file:read('*all')
+file:close()
+
+-- Parse C declarations with FFI
+ffi.cdef(def)
+
+--[[
 ffi.cdef[[
 
 #pragma pack(push, 4)
@@ -460,3 +472,4 @@ int av_opt_set_bin(
 #pragma pack(pop)
 
 ]]
+--]]

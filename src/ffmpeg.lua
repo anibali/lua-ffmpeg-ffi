@@ -24,6 +24,8 @@ local libavutil = load_lib{
 local libavfilter = load_lib{
   'libavfilter-ffmpeg.so.5', 'libavfilter.so.5', 'avfilter'}
 
+local AV_OPT_SEARCH_CHILDREN = 1
+
 -- Initialize libavformat
 libavformat.av_register_all()
 
@@ -66,6 +68,77 @@ function M.new(path)
   -- -- Print format info
   -- libavformat.av_dump_format(self.format_context[0], 0, path, 0)
 
+  -- INIT FILTERS
+
+  local buffersrc = libavfilter.avfilter_get_by_name('buffer');
+  local buffersink = libavfilter.avfilter_get_by_name('buffersink');
+  local outputs = ffi.new('AVFilterInOut*[1]', libavfilter.avfilter_inout_alloc());
+  ffi.gc(outputs, libavfilter.avfilter_inout_free)
+  local inputs = ffi.new('AVFilterInOut*[1]', libavfilter.avfilter_inout_alloc());
+  ffi.gc(inputs, libavfilter.avfilter_inout_free)
+
+  local filter_graph = ffi.new('AVFilterGraph*[1]', libavfilter.avfilter_graph_alloc());
+  ffi.gc(filter_graph, libavfilter.avfilter_graph_free)
+
+  local args = string.format(
+    'video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d',
+    self.video_decoder_context.width,
+    self.video_decoder_context.height,
+    tonumber(self.video_decoder_context.pix_fmt),
+    self.video_decoder_context.time_base.num,
+    self.video_decoder_context.time_base.den,
+    self.video_decoder_context.sample_aspect_ratio.num,
+    self.video_decoder_context.sample_aspect_ratio.den)
+
+  local buffersrc_context = ffi.new('AVFilterContext*[1]');
+  if libavfilter.avfilter_graph_create_filter(
+    buffersrc_context, buffersrc, 'in', args, nil, filter_graph[0]) < 0
+  then
+    error('Failed to create buffer source')
+  end
+
+  local buffersink_context = ffi.new('AVFilterContext*[1]');
+  if libavfilter.avfilter_graph_create_filter(
+    buffersink_context, buffersink, 'out', nil, nil, filter_graph[0]) < 0
+  then
+    error('Failed to create buffer sink')
+  end
+
+  local pix_fmts = ffi.new('enum AVPixelFormat[1]', {libavutil.AV_PIX_FMT_GRAY8})
+  if libavutil.av_opt_set_bin(buffersink_context[0],
+    'pix_fmts', ffi.cast('const unsigned char*', pix_fmts),
+    1 * ffi.sizeof('enum AVPixelFormat'), AV_OPT_SEARCH_CHILDREN) < 0
+  then
+    error('Failed to set output pixel format')
+  end
+
+  outputs[0].name       = libavutil.av_strdup('in');
+  outputs[0].filter_ctx = buffersrc_context[0];
+  outputs[0].pad_idx    = 0;
+  outputs[0].next       = nil;
+  inputs[0].name        = libavutil.av_strdup('out');
+  inputs[0].filter_ctx  = buffersink_context[0];
+  inputs[0].pad_idx     = 0;
+  inputs[0].next        = nil;
+
+  -- https://libav.org/documentation/libavfilter.html#Video-Filters
+  local filter_string = 'scale=80:24,hflip'
+  if libavfilter.avfilter_graph_parse_ptr(filter_graph[0], filter_string,
+    inputs, outputs, nil) < 0
+  then
+    error('avfilter_graph_parse_ptr failed')
+  end
+
+  if libavfilter.avfilter_graph_config(filter_graph[0], nil) < 0 then
+    error('avfilter_graph_config failed')
+  end
+
+  self.filter_graph = filter_graph
+  self.buffersrc_context = buffersrc_context
+  self.buffersink_context = buffersink_context
+
+  -- END INIT FILTERS
+
   setmetatable(self, {__index = Video})
   return self
 end
@@ -88,87 +161,79 @@ function Video:each_frame(video_callback, audio_callback)
   libavcodec.av_init_packet(packet)
   ffi.gc(packet, libavformat.av_packet_unref)
 
-  local frame = libavutil.av_frame_alloc()
-  if frame == 0 then
+  local frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
+  if frame[0] == 0 then
     error('Failed to allocate frame')
   end
   ffi.gc(frame, function(ptr)
-    libavutil.av_frame_unref(ptr)
+    libavutil.av_frame_unref(ptr[0])
     libavutil.av_frame_free(ptr)
   end)
 
-  local dest_data = ffi.new('uint8_t*[4]')
-  local dest_linesize = ffi.new('int[4]')
-  ffi.gc(dest_data, function(ptr)
-    if dest_data[0] ~= nil then
-      libavutil.av_freep(ptr)
-    end
+  local filtered_frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
+  if filtered_frame[0] == 0 then
+    error('Failed to allocate filtered_frame')
+  end
+  ffi.gc(filtered_frame, function(ptr)
+    libavutil.av_frame_unref(ptr[0])
+    libavutil.av_frame_free(ptr)
   end)
 
   while libavformat.av_read_frame(self.format_context[0], packet) == 0 do
     -- Make sure packet is from video stream
     if packet[0].stream_index == self.video_stream_index then
       -- Reset fields in frame
-      libavutil.av_frame_unref(frame)
+      libavutil.av_frame_unref(frame[0])
 
       local got_frame = ffi.new('int[1]')
-      if libavcodec.avcodec_decode_video2(self.video_decoder_context, frame, got_frame, packet) < 0 then
+      if libavcodec.avcodec_decode_video2(self.video_decoder_context, frame[0], got_frame, packet) < 0 then
         error('Failed to decode video frame')
       end
 
       if got_frame[0] ~= 0 then
-
-        local pix_fmt = self.video_decoder_context.pix_fmt
-
-        local image_size = libavutil.av_image_alloc(dest_data, dest_linesize,
-          self.video_decoder_context.width, self.video_decoder_context.height,
-          pix_fmt, 1)
-
-        if image_size < 0 then
-          error('Failed to allocate image buffer')
+        -- Push the decoded frame into the filtergraph
+        if libavfilter.av_buffersrc_add_frame_flags(self.buffersrc_context[0],
+          frame[0], libavfilter.AV_BUFFERSRC_FLAG_KEEP_REF) < 0
+        then
+          error('Error while feeding the filtergraph')
         end
 
-        libavutil.av_image_copy(dest_data, dest_linesize,
-          ffi.cast(ffi.typeof'const uint8_t**', frame.data), frame.linesize,
-          pix_fmt,
-          self.video_decoder_context.width, self.video_decoder_context.height);
-
-        video_callback(dest_data, dest_linesize)
+        -- Pull filtered frames from the filtergraph
+        libavutil.av_frame_unref(filtered_frame[0]);
+        while libavfilter.av_buffersink_get_frame(self.buffersink_context[0], filtered_frame[0]) >= 0 do
+          video_callback(filtered_frame[0])
+        end
       end
     end
   end
 end
 
--- Assumes YUV
-function Video:image_to_ascii(dest_data, dest_linesize)
-  local max_rows = 24
-  local max_cols = 80
-  local y_spacing = math.floor(self.video_decoder_context.height / max_rows)
-  local x_spacing = math.floor(self.video_decoder_context.width / max_cols)
+function Video:image_to_ascii(frame)
+  if frame.format ~= libavutil.AV_PIX_FMT_GRAY8 then
+    error(string.format(
+      'Unexpected pixel format "%s", image_to_ascii requires "%s"',
+      ffi.string(libavutil.av_get_pix_fmt_name(frame.format)),
+      ffi.string(libavutil.av_get_pix_fmt_name(libavutil.AV_PIX_FMT_GRAY8))))
+  end
+
   local ascii = {}
 
-  for y = 0, (self.video_decoder_context.height - 1) do
-    if y % y_spacing == 0 then
-      for x = 0, (self.video_decoder_context.width - 1) do
-        if x % x_spacing == 0 then
-          local luma = dest_data[0][y * dest_linesize[0] + x]
-          -- local chrom_u = dest_data[1][y * dest_linesize[1] + x]
-          -- local chrom_v = dest_data[2][y * dest_linesize[2] + x]
-          if luma > 200 then
-            table.insert(ascii, '#')
-          elseif luma > 150 then
-            table.insert(ascii, '+')
-          elseif luma > 100 then
-            table.insert(ascii, '-')
-          elseif luma > 50 then
-            table.insert(ascii, '.')
-          else
-            table.insert(ascii, ' ')
-          end
-        end
+  for y = 0, (frame.height - 1) do
+    for x = 0, (frame.width - 1) do
+      local luma = frame.data[0][y * frame.linesize[0] + x]
+      if luma > 200 then
+        table.insert(ascii, '#')
+      elseif luma > 150 then
+        table.insert(ascii, '+')
+      elseif luma > 100 then
+        table.insert(ascii, '-')
+      elseif luma > 50 then
+        table.insert(ascii, '.')
+      else
+        table.insert(ascii, ' ')
       end
-      table.insert(ascii, '\n')
     end
+    table.insert(ascii, '\n')
   end
 
   return table.concat(ascii, '')

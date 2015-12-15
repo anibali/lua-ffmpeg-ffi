@@ -20,9 +20,9 @@ ENV LUA_PATH='/root/.luarocks/share/lua/5.1/?.lua;/root/.luarocks/share/lua/5.1/
     LD_LIBRARY_PATH=/opt/luajit-rocks/lib:$LD_LIBRARY_PATH \
     DYLD_LIBRARY_PATH=/opt/luajit-rocks/lib:$DYLD_LIBRARY_PATH
 
-# Install libraries for ffmpeg
+# Install libraries and headers for ffmpeg
 RUN apk add --update \
-    ffmpeg-libs \
+    ffmpeg-dev \
     && rm -rf /var/cache/apk/*
 
 # Install required Lua modules
