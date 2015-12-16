@@ -18,16 +18,22 @@ function ffmpeg.Video:frame_to_tensor(frame)
 
   if is_packed_rgb then
     -- TODO: Support other packed RGB formats
-    assert(ffi.string(ffmpeg.libavutil.av_get_pix_fmt_name(frame.format)) == 'rgb8')
+    assert(ffi.string(ffmpeg.libavutil.av_get_pix_fmt_name(frame.format)) == 'rgb24')
 
+    -- Create a Torch tensor to hold the image
     tensor = torch.ByteTensor(3, frame.height, frame.width)
-    tensor:zero()
 
-    for y=1,frame.height do
-      for x=1,frame.width do
-        local p = (y - 1) * frame.linesize[0] + (x - 1) * 3
-        for i=1,3 do
-          tensor[i][y][x] = frame.data[0][p + (i - 1)]
+    -- Fill the tensor
+    local ptr = torch.data(tensor)
+    local pos = 0
+    local y_max = frame.height - 1
+    local triple_x_max = (frame.width - 1) * 3
+    for i=0,2 do
+      for y=0,y_max do
+        local offset = y * frame.linesize[0] + i
+        for triple_x=0,triple_x_max,3 do
+          ptr[pos] = frame.data[0][offset + triple_x]
+          pos = pos + 1
         end
       end
     end
@@ -46,12 +52,18 @@ function ffmpeg.Video:frame_to_tensor(frame)
     tensor = torch.ByteTensor(n_channels, frame.height, frame.width)
 
     -- Fill the tensor
-    for i=1,n_channels do
-      local stride = frame.linesize[i - 1]
-      local channel_data = frame.data[i - 1]
-      for y=1,frame.height do
-        for x=1,frame.width do
-          tensor[i][y][x] = channel_data[(y - 1) * stride + (x - 1)]
+    local ptr = torch.data(tensor)
+    local pos = 0
+    local y_max = frame.height - 1
+    local x_max = frame.width - 1
+    for i=0,(n_channels-1) do
+      local stride = frame.linesize[i]
+      local channel_data = frame.data[i]
+      for y=0,y_max do
+        local offset = stride * y
+        for x=0,x_max do
+          ptr[pos] = channel_data[offset + x]
+          pos = pos + 1
         end
       end
     end

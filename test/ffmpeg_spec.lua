@@ -91,9 +91,10 @@ describe('ffmpeg', function()
     -- it('ascii video fun', function()
     --   local i = 0
     --   io.write('\027[H\027[2J')
+    --   video:filter('gray', 'scale=80:24')
     --   video:each_frame(function(frame)
-    --     io.write(video:image_to_ascii(frame))
-    --     -- os.execute('sleep 1')
+    --     io.write(video:frame_to_ascii(frame))
+    --     os.execute('sleep 1')
     --     i = i + 1
     --   end)
     -- end)

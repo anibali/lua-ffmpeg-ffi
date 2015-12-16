@@ -42,7 +42,7 @@ describe('ffmpeg.torch', function()
         local actual_tensor = '<unset>'
 
         video
-          :filter('rgb8', 'scale=16:16')
+          :filter('rgb24', 'scale=16:16')
           :read_video_frame()
           :to_tensor()
           :and_then(function(tensor)
