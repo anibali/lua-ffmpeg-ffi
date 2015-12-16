@@ -7,9 +7,9 @@ source = {
 }
 
 description = {
-  summary = "LuaJIT FFI bindings to FFMpeg libraries",
+  summary = "LuaJIT FFI bindings to FFmpeg libraries",
   detailed = [[
-    This module provides LuaJIT FFI bindings to FFMpeg libraries for processing
+    This module provides LuaJIT FFI bindings to FFmpeg libraries for processing
     videos
   ]],
   homepage = "https://github.com/anibali/lua-ffmpeg-ffi",
@@ -23,7 +23,8 @@ dependencies = {
 build = {
   type = "builtin",
   modules = {
-    ["ffmpeg"] = "src/ffmpeg/init.lua",
-    ["ffmpeg.torch"] = "src/ffmpeg/torch.lua"
+    ["ffmpeg"] = "src/ffmpeg/ffmpeg.lua",
+    ["ffmpeg.torch"] = "src/ffmpeg/torch.lua",
+    ["monad"] = "src/monad/monad.lua"
   }
 }
