@@ -1,6 +1,10 @@
 local ffmpeg = require('ffmpeg')
 
 describe('ffmpeg', function()
+  it('should not require Torch', function()
+    assert.is_nil(_G.torch)
+  end)
+
   describe('Video', function()
     local video
     local n_video_frames = 418
@@ -47,6 +51,40 @@ describe('ffmpeg', function()
           video:read_video_frame():catch(catch_function)
         end
         assert.spy(catch_function).was.called()
+      end)
+    end)
+
+    describe(':frame_to_ascii', function()
+      it('should convert video frame to an ASCII representation', function()
+        local expected = table.concat({
+          '                                        ',
+          '                                        ',
+          '                       .                ',
+          '                      .....             ',
+          '                     ......             ',
+          '                    ......-             ',
+          '                    .-.....             ',
+          '                   ........             ',
+          '                    ........            ',
+          '                     .......            ',
+          '                      .....             ',
+          '                       ...              '
+        }, '\n') .. '\n'
+
+        local actual = '<unset>'
+
+        video
+          :filter('gray', 'scale=40:12')
+          :read_video_frame()
+          :to_ascii()
+          :and_then(function(frame)
+            actual = frame
+          end)
+          :catch(function(err)
+            error(err)
+          end)
+
+        assert.are.same(expected, actual)
       end)
     end)
 

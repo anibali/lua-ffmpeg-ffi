@@ -64,7 +64,7 @@ end
 function M.Either()
   local either = M.new(function(monad, value)
     monad.bind = function(func, name, ...)
-      if (name == 'catch') ~= monad.is_error then
+      if (name == 'catch') ~= (not (not monad.is_error)) then
         return monad
       else
         return func(value, ...)

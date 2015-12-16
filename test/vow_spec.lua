@@ -1,4 +1,4 @@
-local vow = require('vow')
+local vow = require('monad.vow')
 
 describe('vow', function()
   describe('when kept', function()

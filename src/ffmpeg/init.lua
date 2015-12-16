@@ -1,5 +1,5 @@
 local ffi = require('ffi')
-require('./cdef')
+require('ffmpeg.cdef')
 
 local monad = require('monad')
 
@@ -26,7 +26,26 @@ local libavutil = load_lib{
 local libavfilter = load_lib{
   'libavfilter-ffmpeg.so.5', 'libavfilter.so.5', 'avfilter'}
 
+M.libavformat = libavformat
+M.libavcodec = libavcodec
+M.libavutil = libavutil
+M.libavfilter = libavfilter
+
 local AV_OPT_SEARCH_CHILDREN = 1
+
+local av_log_level = {
+  quiet   = -8,
+  panic   = 0,
+  fatal   = 8,
+  error   = 16,
+  warning = 24,
+  info    = 32,
+  verbose = 40,
+  debug   = 48,
+  trace   = 56
+}
+
+libavutil.av_log_set_level(av_log_level.error)
 
 -- Initialize libavformat
 libavformat.av_register_all()
@@ -70,26 +89,32 @@ local function init_frame_reader(self)
         end
 
         if got_frame[0] ~= 0 then
-          -- Push the decoded frame into the filtergraph
-          if libavfilter.av_buffersrc_add_frame_flags(self.buffersrc_context[0],
-            frame[0], libavfilter.AV_BUFFERSRC_FLAG_KEEP_REF) < 0
-          then
-            error('Error while feeding the filtergraph')
-          end
+          if self.is_filtered then
+            -- Push the decoded frame into the filtergraph
+            if libavfilter.av_buffersrc_add_frame_flags(self.buffersrc_context[0],
+              frame[0], libavfilter.AV_BUFFERSRC_FLAG_KEEP_REF) < 0
+            then
+              error('Error while feeding the filtergraph')
+            end
 
-          -- Pull filtered frames from the filtergraph
-          libavutil.av_frame_unref(filtered_frame[0]);
-          while libavfilter.av_buffersink_get_frame(self.buffersink_context[0], filtered_frame[0]) >= 0 do
-            coroutine.yield(filtered_frame[0], 'video')
+            -- Pull filtered frames from the filtergraph
+            libavutil.av_frame_unref(filtered_frame[0]);
+            while libavfilter.av_buffersink_get_frame(self.buffersink_context[0], filtered_frame[0]) >= 0 do
+              coroutine.yield(filtered_frame[0], 'video')
+            end
+          else
+            coroutine.yield(frame[0], 'video')
           end
         end
+      else
+        -- TODO: Audio frames
       end
     end
   end)
 end
 
 function M.new(path)
-  local self = {}
+  local self = {is_filtered = false}
   setmetatable(self, {__index = Video})
 
   self.format_context = ffi.new('AVFormatContext*[1]')
@@ -125,14 +150,18 @@ function M.new(path)
   -- -- Print format info
   -- libavformat.av_dump_format(self.format_context[0], 0, path, 0)
 
-  self:init_filters('gray', 'scale=80:24,hflip')
-
   init_frame_reader(self)
 
   return self
 end
 
-function Video:init_filters(pixel_format_name, filterchain)
+function Video:filter(pixel_format_name, filterchain)
+  local result = monad.Either()
+  result.lift('read_video_frame', function(video)
+    return video:read_video_frame()
+  end)
+
+  filterchain = filterchain or 'null'
   local buffersrc = libavfilter.avfilter_get_by_name('buffer');
   local buffersink = libavfilter.avfilter_get_by_name('buffersink');
   local outputs = ffi.new('AVFilterInOut*[1]', libavfilter.avfilter_inout_alloc());
@@ -201,6 +230,9 @@ function Video:init_filters(pixel_format_name, filterchain)
   self.filter_graph = filter_graph
   self.buffersrc_context = buffersrc_context
   self.buffersink_context = buffersink_context
+  self.is_filtered = true
+
+  return result:success(self)
 end
 
 -- Get video duration in seconds
@@ -214,6 +246,12 @@ end
 
 function Video:read_video_frame()
   local result = monad.Either()
+  result.lift('to_ascii', function(frame)
+    return self:frame_to_ascii(frame)
+  end)
+  result.lift('to_tensor', function(frame)
+    return self:frame_to_tensor(frame)
+  end)
 
   while true do
     if coroutine.status(self.frame_reader) == 'dead' then
@@ -245,10 +283,10 @@ function Video:each_frame(video_callback, audio_callback)
   end
 end
 
-function Video:image_to_ascii(frame)
+function Video:frame_to_ascii(frame)
   if frame.format ~= libavutil.AV_PIX_FMT_GRAY8 then
     error(string.format(
-      'Unexpected pixel format "%s", image_to_ascii requires "%s"',
+      'Unexpected pixel format "%s", frame_to_ascii requires "%s"',
       ffi.string(libavutil.av_get_pix_fmt_name(frame.format)),
       ffi.string(libavutil.av_get_pix_fmt_name(libavutil.AV_PIX_FMT_GRAY8))))
   end
@@ -275,5 +313,7 @@ function Video:image_to_ascii(frame)
 
   return table.concat(ascii, '')
 end
+
+M.Video = Video
 
 return M

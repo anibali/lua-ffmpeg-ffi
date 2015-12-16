@@ -1,31 +1,51 @@
-FROM anibali/alpine-tini:3.2
+FROM ubuntu:14.04
 
-# Install build dependencies
-RUN apk add --update \
-    build-base cmake git libffi ca-certificates wget curl unzip \
-    && rm -rf /var/cache/apk/*
+# Install build tools
+RUN apt-get update \
+    && apt-get install -y build-essential git
 
-# Install LuaJIT and LuaRocks (with Torch repo enabled)
-RUN git clone https://github.com/torch/luajit-rocks.git /tmp/luajit-rocks
-RUN cd /tmp/luajit-rocks \
-    && cmake . -DCMAKE_INSTALL_PREFIX="/opt/luajit-rocks" -DCMAKE_BUILD_TYPE=Release -DWITH_LUAJIT21=ON \
-    && make \
+# Install OpenBLAS
+RUN apt-get update \
+    && apt-get install -y gfortran
+RUN git clone https://github.com/xianyi/OpenBLAS.git /tmp/OpenBLAS \
+    && cd /tmp/OpenBLAS \
+    && [ $(getconf _NPROCESSORS_ONLN) = 1 ] && export USE_OPENMP=0 || export USE_OPENMP=1 \
+    && make NO_AFFINITY=1 \
     && make install \
-    && rm -rf /tmp/luajit-rocks
+    && rm -rf /tmp/OpenBLAS
+
+# Install Torch
+RUN apt-get update \
+    && apt-get install -y cmake curl unzip libreadline-dev libjpeg-dev \
+    libpng-dev ncurses-dev imagemagick gnuplot gnuplot-x11 libssl-dev \
+    libzmq3-dev graphviz
+RUN git clone https://github.com/torch/distro.git ~/torch --recursive \
+    && cd ~/torch \
+    && ./install.sh
 
 # Export environment variables manually
-ENV LUA_PATH='/root/.luarocks/share/lua/5.1/?.lua;/root/.luarocks/share/lua/5.1/?/init.lua;/opt/luajit-rocks/share/lua/5.1/?.lua;/opt/luajit-rocks/share/lua/5.1/?/init.lua;./?.lua;/opt/luajit-rocks/share/luajit-2.1.0-alpha/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua' \
-    LUA_CPATH='/root/.luarocks/lib/lua/5.1/?.so;/opt/luajit-rocks/lib/lua/5.1/?.so;./?.so;/usr/local/lib/lua/5.1/?.so;/usr/local/lib/lua/5.1/loadall.so' \
-    PATH=/opt/luajit-rocks/bin:$PATH \
-    LD_LIBRARY_PATH=/opt/luajit-rocks/lib:$LD_LIBRARY_PATH \
-    DYLD_LIBRARY_PATH=/opt/luajit-rocks/lib:$DYLD_LIBRARY_PATH
+ENV LUA_PATH='/root/.luarocks/share/lua/5.1/?.lua;/root/.luarocks/share/lua/5.1/?/init.lua;/root/torch/install/share/lua/5.1/?.lua;/root/torch/install/share/lua/5.1/?/init.lua;./?.lua;/root/torch/install/share/luajit-2.1.0-alpha/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua' \
+    LUA_CPATH='/root/.luarocks/lib/lua/5.1/?.so;/root/torch/install/lib/lua/5.1/?.so;./?.so;/usr/local/lib/lua/5.1/?.so;/usr/local/lib/lua/5.1/loadall.so' \
+    PATH=/root/torch/install/bin:$PATH \
+    LD_LIBRARY_PATH=/root/torch/install/lib:$LD_LIBRARY_PATH \
+    DYLD_LIBRARY_PATH=/root/torch/install/lib:$DYLD_LIBRARY_PATH
 
-# Install libraries and headers for ffmpeg
-RUN apk add --update \
-    ffmpeg-dev \
-    && rm -rf /var/cache/apk/*
+# Install required dependencies for ffmpeg.lua
+RUN echo "deb http://ppa.launchpad.net/kirillshkrogalev/ffmpeg-next/ubuntu trusty main" \
+    > /etc/apt/sources.list.d/ffmpeg.list \
+    && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 8EFE5982
+RUN apt-get update \
+    && apt-get install -y \
+    cpp \
+    libavformat-ffmpeg-dev \
+    libavcodec-ffmpeg-dev \
+    libavutil-ffmpeg-dev \
+    libavfilter-ffmpeg-dev
 
-# Install required Lua modules
+# Clean up
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Install busted for running tests
 RUN luarocks install busted
 
 # Make working directory for this project
