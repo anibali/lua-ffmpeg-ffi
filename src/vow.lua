@@ -1,7 +1,7 @@
 -- Credit: https://github.com/douglascrockford/monad
 
-M = {}
-Vow = {}
+local M = {}
+local Vow = {}
 
 local function is_callable(thing)
   return type(func) == 'function' or

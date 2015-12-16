@@ -1,6 +1,6 @@
 -- Credit: https://github.com/douglascrockford/monad
 
-M = {}
+local M = {}
 
 function M.new(modifier)
   local proto = {is_monad=true}
@@ -64,7 +64,7 @@ end
 function M.Either()
   local either = M.new(function(monad, value)
     monad.bind = function(func, name, ...)
-      if (name == 'catch') == monad.is_success then
+      if (name == 'catch') ~= monad.is_error then
         return monad
       else
         return func(value, ...)
@@ -77,15 +77,19 @@ function M.Either()
     callback(value)
   end)
 
+  either.lift('and_then', function(value, callback)
+    callback(value)
+  end)
+
   function either:success(value)
     local monad = either(value)
-    monad.is_success = true
+    monad.is_error = false
     return monad
   end
 
   function either:error(value)
     local monad = either(value)
-    monad.is_success = false
+    monad.is_error = true
     return monad
   end
 

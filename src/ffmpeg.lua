@@ -1,7 +1,9 @@
 local ffi = require('ffi')
 require('./cdef')
 
-M = {}
+local monad = require('monad')
+
+local M = {}
 
 local Video = {}
 
@@ -31,6 +33,60 @@ libavformat.av_register_all()
 
 -- Initialize libavfilter
 libavfilter.avfilter_register_all()
+
+local function init_frame_reader(self)
+  local packet = ffi.new('AVPacket[1]')
+  libavcodec.av_init_packet(packet)
+  ffi.gc(packet, libavformat.av_packet_unref)
+
+  local frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
+  if frame[0] == 0 then
+    error('Failed to allocate frame')
+  end
+  ffi.gc(frame, function(ptr)
+    libavutil.av_frame_unref(ptr[0])
+    libavutil.av_frame_free(ptr)
+  end)
+
+  local filtered_frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
+  if filtered_frame[0] == 0 then
+    error('Failed to allocate filtered_frame')
+  end
+  ffi.gc(filtered_frame, function(ptr)
+    libavutil.av_frame_unref(ptr[0])
+    libavutil.av_frame_free(ptr)
+  end)
+
+  self.frame_reader = coroutine.create(function()
+    while libavformat.av_read_frame(self.format_context[0], packet) == 0 do
+      -- Make sure packet is from video stream
+      if packet[0].stream_index == self.video_stream_index then
+        -- Reset fields in frame
+        libavutil.av_frame_unref(frame[0])
+
+        local got_frame = ffi.new('int[1]')
+        if libavcodec.avcodec_decode_video2(self.video_decoder_context, frame[0], got_frame, packet) < 0 then
+          error('Failed to decode video frame')
+        end
+
+        if got_frame[0] ~= 0 then
+          -- Push the decoded frame into the filtergraph
+          if libavfilter.av_buffersrc_add_frame_flags(self.buffersrc_context[0],
+            frame[0], libavfilter.AV_BUFFERSRC_FLAG_KEEP_REF) < 0
+          then
+            error('Error while feeding the filtergraph')
+          end
+
+          -- Pull filtered frames from the filtergraph
+          libavutil.av_frame_unref(filtered_frame[0]);
+          while libavfilter.av_buffersink_get_frame(self.buffersink_context[0], filtered_frame[0]) >= 0 do
+            coroutine.yield(filtered_frame[0], 'video')
+          end
+        end
+      end
+    end
+  end)
+end
 
 function M.new(path)
   local self = {}
@@ -70,6 +126,8 @@ function M.new(path)
   -- libavformat.av_dump_format(self.format_context[0], 0, path, 0)
 
   self:init_filters('gray', 'scale=80:24,hflip')
+
+  init_frame_reader(self)
 
   return self
 end
@@ -154,59 +212,36 @@ function Video:pixel_format_name()
   return ffi.string(libavutil.av_get_pix_fmt_name(self.video_decoder_context.pix_fmt))
 end
 
+function Video:read_video_frame()
+  local result = monad.Either()
+
+  while true do
+    if coroutine.status(self.frame_reader) == 'dead' then
+      return result:error('End of stream')
+    end
+
+    local ok, frame, frame_type = coroutine.resume(self.frame_reader)
+
+    if not ok then
+      return result:error(frame)
+    end
+
+    if frame_type == 'video' then
+      return result:success(frame)
+    end
+  end
+end
+
 function Video:each_frame(video_callback, audio_callback)
   if audio_callback ~= nil then
     error('Audio frames not supported yet')
   end
 
-  local packet = ffi.new('AVPacket[1]')
-  libavcodec.av_init_packet(packet)
-  ffi.gc(packet, libavformat.av_packet_unref)
-
-  local frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
-  if frame[0] == 0 then
-    error('Failed to allocate frame')
-  end
-  ffi.gc(frame, function(ptr)
-    libavutil.av_frame_unref(ptr[0])
-    libavutil.av_frame_free(ptr)
-  end)
-
-  local filtered_frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
-  if filtered_frame[0] == 0 then
-    error('Failed to allocate filtered_frame')
-  end
-  ffi.gc(filtered_frame, function(ptr)
-    libavutil.av_frame_unref(ptr[0])
-    libavutil.av_frame_free(ptr)
-  end)
-
-  while libavformat.av_read_frame(self.format_context[0], packet) == 0 do
-    -- Make sure packet is from video stream
-    if packet[0].stream_index == self.video_stream_index then
-      -- Reset fields in frame
-      libavutil.av_frame_unref(frame[0])
-
-      local got_frame = ffi.new('int[1]')
-      if libavcodec.avcodec_decode_video2(self.video_decoder_context, frame[0], got_frame, packet) < 0 then
-        error('Failed to decode video frame')
-      end
-
-      if got_frame[0] ~= 0 then
-        -- Push the decoded frame into the filtergraph
-        if libavfilter.av_buffersrc_add_frame_flags(self.buffersrc_context[0],
-          frame[0], libavfilter.AV_BUFFERSRC_FLAG_KEEP_REF) < 0
-        then
-          error('Error while feeding the filtergraph')
-        end
-
-        -- Pull filtered frames from the filtergraph
-        libavutil.av_frame_unref(filtered_frame[0]);
-        while libavfilter.av_buffersink_get_frame(self.buffersink_context[0], filtered_frame[0]) >= 0 do
-          video_callback(filtered_frame[0])
-        end
-      end
-    end
+  local running = true
+  while running do
+    self:read_video_frame():and_then(video_callback):catch(function(err)
+      running = false
+    end)
   end
 end
 
