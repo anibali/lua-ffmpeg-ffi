@@ -32,52 +32,54 @@ describe('monad', function()
 
   describe('Either', function()
     describe('when successful', function()
-      local either
+      local either_success
       local catch_function
       local bound_function
 
       before_each(function()
-        either = monad.Either()
+        local either = monad.Either()
         catch_function = spy.new(function() end)
         bound_function = spy.new(function() end)
         either.lift('do_something', bound_function)
+        either_success = either('Some value')
       end)
 
       it('should not call catch function callback', function()
-        either:success('Some value'):catch(catch_function)
+        either_success:catch(catch_function)
         assert.spy(catch_function).was_not.called()
       end)
 
       it('should call bound function', function()
-        either:success('Some value'):do_something()
+        either_success:do_something()
         assert.spy(bound_function).was.called()
       end)
     end)
 
     describe('when not successful', function()
-      local either
+      local either_error
       local catch_function
       local bound_function
 
       before_each(function()
-        either = monad.Either()
+        local either = monad.Either()
         catch_function = spy.new(function() end)
         bound_function = spy.new(function() end)
         either.lift('do_something', bound_function)
+        either_error = either.error('An error message')
       end)
 
       it('should call catch function callback', function()
-        either:error('An error message'):catch(catch_function)
+        either_error:catch(catch_function)
         assert.spy(catch_function).was.called()
       end)
 
       it('should not call bound function', function()
-        either:error('An error message'):do_something()
+        either_error:do_something()
         assert.spy(bound_function).was_not.called()
       end)
 
       it('should skip bound function to call catch function callback', function()
-        either:error('An error message'):do_something():catch(catch_function)
+        either_error:do_something():catch(catch_function)
         assert.spy(bound_function).was_not.called()
         assert.spy(catch_function).was.called()
       end)

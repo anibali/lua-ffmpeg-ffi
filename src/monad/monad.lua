@@ -13,6 +13,10 @@ function M.new(modifier)
     monad.bind = function(func, name, ...)
       func(value, ...)
     end
+    -- Using this function is a cop-out
+    monad.get = function()
+      return value
+    end
     if modifier ~= nil then
       value = modifier(monad, value)
     end
@@ -35,7 +39,7 @@ function M.new(modifier)
   unit.lift = function(name, func)
     proto[name] = function(self, ...)
       local result = self.bind(func, name, ...)
-      if result and result.is_monad then
+      if type(result) == 'table' and result.is_monad then
         return result
       else
         return unit(result)
@@ -52,6 +56,7 @@ function M.Maybe()
     if value == nil then
       monad.is_nil = true
       monad.bind = function() return monad end
+      monad.get = function() error('Maybe monad is empty') end
     else
       monad.is_nil = false
     end
@@ -63,11 +68,21 @@ end
 
 function M.Either()
   local either = M.new(function(monad, value)
+    monad.is_error = false
     monad.bind = function(func, name, ...)
-      if (name == 'catch') ~= (not (not monad.is_error)) then
+      if (name == 'catch') ~= monad.is_error then
         return monad
       else
         return func(value, ...)
+      end
+    end
+    -- Using this function is a cop-out
+    monad.get = function()
+      if monad.is_error then
+        -- Can't get value when monad is error, so raise the error
+        error(value)
+      else
+        return value
       end
     end
     return value
@@ -81,13 +96,7 @@ function M.Either()
     callback(value)
   end)
 
-  function either:success(value)
-    local monad = either(value)
-    monad.is_error = false
-    return monad
-  end
-
-  function either:error(value)
+  function either.error(value)
     local monad = either(value)
     monad.is_error = true
     return monad
