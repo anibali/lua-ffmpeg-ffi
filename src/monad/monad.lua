@@ -4,19 +4,11 @@ local M = {}
 
 function M.new(modifier)
   local proto = {is_monad=true}
-  -- This piece of weirdness turns missing fields into functions that return
-  -- the monad itself. This stops chains from breaking.
-  setmetatable(proto, {__index = function(t, key)
-    return function()
-      return t
-    end
-  end})
 
   local unit = {}
 
   local function unit_call(self, value)
     local monad = {}
-    setmetatable(monad, {__index = proto})
     monad.bind = function(func, name, ...)
       func(value, ...)
     end
@@ -24,6 +16,21 @@ function M.new(modifier)
     monad.get = function()
       return value
     end
+    -- Yes, this is crazy
+    setmetatable(monad, {__index = function(t, key)
+      if proto[key] then return proto[key] end
+      if type(value) == 'table' and type(value[key]) == 'function' then
+        return function(self, ...)
+          local result = self.bind(value[key], name, ...)
+          if type(result) == 'table' and result.is_monad then
+            return result
+          else
+            return unit(result)
+          end
+        end
+      end
+      return function() return monad end
+    end})
     if modifier ~= nil then
       value = modifier(unit, monad, value)
     end
