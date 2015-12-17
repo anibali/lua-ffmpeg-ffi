@@ -30,59 +30,43 @@ describe('monad', function()
     end)
   end)
 
-  describe('Either', function()
-    describe('when successful', function()
-      local either_success
-      local catch_function
-      local bound_function
+  describe('Error', function()
+    local error_monad
 
-      before_each(function()
-        local either = monad.Either()
-        catch_function = spy.new(function() end)
-        bound_function = spy.new(function() end)
-        either.lift('do_something', bound_function)
-        either_success = either('Some value')
-      end)
-
-      it('should not call catch function callback', function()
-        either_success:catch(catch_function)
-        assert.spy(catch_function).was_not.called()
-      end)
-
-      it('should call bound function', function()
-        either_success:do_something()
-        assert.spy(bound_function).was.called()
-      end)
+    before_each(function()
+      error_monad = monad.Error()('An error')
     end)
 
-    describe('when not successful', function()
-      local either_error
-      local catch_function
-      local bound_function
+    it('should call catch function callback', function()
+      catch_function = spy.new(function() end)
+      error_monad:catch(catch_function)
+      assert.spy(catch_function).was.called_with('An error')
+    end)
 
-      before_each(function()
-        local either = monad.Either()
-        catch_function = spy.new(function() end)
-        bound_function = spy.new(function() end)
-        either.lift('do_something', bound_function)
-        either_error = either.error('An error message')
-      end)
+    it('should not call and_then function callback', function()
+      and_then_function = spy.new(function() end)
+      error_monad:and_then(and_then_function)
+      assert.spy(and_then_function).was_not.called()
+    end)
+  end)
 
-      it('should call catch function callback', function()
-        either_error:catch(catch_function)
-        assert.spy(catch_function).was.called()
-      end)
+  describe('Value', function()
+    local value_monad
 
-      it('should not call bound function', function()
-        either_error:do_something()
-        assert.spy(bound_function).was_not.called()
-      end)
+    before_each(function()
+      value_monad = monad.Value()('A value')
+    end)
 
-      it('should skip bound function to call catch function callback', function()
-        either_error:do_something():catch(catch_function)
-        assert.spy(bound_function).was_not.called()
-        assert.spy(catch_function).was.called()
-      end)
+    it('should call catch function callback', function()
+      catch_function = spy.new(function() end)
+      value_monad:catch(catch_function)
+      assert.spy(catch_function).was_not.called()
+    end)
+
+    it('should not call and_then function callback', function()
+      and_then_function = spy.new(function() end)
+      value_monad:and_then(and_then_function)
+      assert.spy(and_then_function).was.called_with('A value')
     end)
   end)
 end)

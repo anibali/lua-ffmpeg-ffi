@@ -3,6 +3,7 @@ local monad = require('monad')
 
 local M = {}
 local Video = {}
+local VideoFrame = {}
 
 -- Write includes to a temporary file
 local includes_path = os.tmpname()
@@ -73,6 +74,13 @@ libavformat.av_register_all()
 
 -- Initialize libavfilter
 libavfilter.avfilter_register_all()
+
+local function new_video_frame(ffi_frame)
+  local self = {ffi_frame = ffi_frame}
+  setmetatable(self, {__index = VideoFrame})
+
+  return self
+end
 
 local function create_frame_reader(self)
   local frame_reader = coroutine.create(function()
@@ -145,7 +153,7 @@ function M.new(path)
 
   self.format_context = ffi.new('AVFormatContext*[1]')
   if libavformat.avformat_open_input(self.format_context, path, nil, nil) < 0 then
-    return monad.Either().error('Failed to open video input for ' .. path)
+    return monad.Error()('Failed to open video input for ' .. path)
   end
 
   -- Release format context when collected by the GC
@@ -153,7 +161,7 @@ function M.new(path)
 
   -- Calculate info about the stream
   if libavformat.avformat_find_stream_info(self.format_context[0], nil) < 0 then
-    return monad.Either().error('Failed to find stream info for ' .. path)
+    return monad.Error()('Failed to find stream info for ' .. path)
   end
 
   -- Select video stream
@@ -161,13 +169,13 @@ function M.new(path)
   self.video_stream_index = libavformat.av_find_best_stream(
     self.format_context[0], libavformat.AVMEDIA_TYPE_VIDEO, -1, -1, decoder, 0)
   if self.video_stream_index < 0 then
-    return monad.Either().error('Failed to find video stream for ' .. path)
+    return monad.Error()('Failed to find video stream for ' .. path)
   end
 
   self.video_decoder_context = self.format_context[0].streams[self.video_stream_index].codec
 
   if libavcodec.avcodec_open2(self.video_decoder_context, decoder[0], nil) < 0 then
-    return monad.Either().error('Failed to open video decoder')
+    return monad.Error()('Failed to open video decoder')
   end
 
   -- Release decoder context when collected by the GC
@@ -178,7 +186,7 @@ function M.new(path)
 
   self.frame_reader = create_frame_reader(self)
 
-  return monad.Either()(self)
+  return monad.Value()(self)
 end
 
 function Video:filter(pixel_format_name, filterchain)
@@ -207,26 +215,26 @@ function Video:filter(pixel_format_name, filterchain)
   if libavfilter.avfilter_graph_create_filter(
     buffersrc_context, buffersrc, 'in', args, nil, filter_graph[0]) < 0
   then
-    return monad.Either().error('Failed to create buffer source')
+    return monad.Error()('Failed to create buffer source')
   end
 
   local buffersink_context = ffi.new('AVFilterContext*[1]');
   if libavfilter.avfilter_graph_create_filter(
     buffersink_context, buffersink, 'out', nil, nil, filter_graph[0]) < 0
   then
-    return monad.Either().error('Failed to create buffer sink')
+    return monad.Error()('Failed to create buffer sink')
   end
 
   local pix_fmt = libavutil.av_get_pix_fmt(pixel_format_name)
   if pix_fmt == libavutil.AV_PIX_FMT_NONE then
-    return monad.Either().error('Invalid pixel format name: ' .. pixel_format_name)
+    return monad.Error()('Invalid pixel format name: ' .. pixel_format_name)
   end
   local pix_fmts = ffi.new('enum AVPixelFormat[1]', {pix_fmt})
   if libavutil.av_opt_set_bin(buffersink_context[0],
     'pix_fmts', ffi.cast('const unsigned char*', pix_fmts),
     1 * ffi.sizeof('enum AVPixelFormat'), AV_OPT_SEARCH_CHILDREN) < 0
   then
-    return monad.Either().error('Failed to set output pixel format')
+    return monad.Error()('Failed to set output pixel format')
   end
 
   outputs[0].name       = libavutil.av_strdup('in');
@@ -241,11 +249,11 @@ function Video:filter(pixel_format_name, filterchain)
   if libavfilter.avfilter_graph_parse_ptr(filter_graph[0], filterchain,
     inputs, outputs, nil) < 0
   then
-    return monad.Either().error('avfilter_graph_parse_ptr failed')
+    return monad.Error()('avfilter_graph_parse_ptr failed')
   end
 
   if libavfilter.avfilter_graph_config(filter_graph[0], nil) < 0 then
-    return monad.Either().error('avfilter_graph_config failed')
+    return monad.Error()('avfilter_graph_config failed')
   end
 
   self.filter_graph = filter_graph
@@ -253,7 +261,7 @@ function Video:filter(pixel_format_name, filterchain)
   self.buffersink_context = buffersink_context
   self.is_filtered = true
 
-  return monad.Either()(self)
+  return monad.Value()(self)
 end
 
 -- Get video duration in seconds
@@ -266,27 +274,19 @@ function Video:pixel_format_name()
 end
 
 function Video:read_video_frame()
-  local result = monad.Either()
-  result.lift('to_ascii', function(frame)
-    return self:frame_to_ascii(frame)
-  end)
-  result.lift('to_tensor', function(frame)
-    return self:frame_to_tensor(frame)
-  end)
-
   while true do
     if coroutine.status(self.frame_reader) == 'dead' then
-      return result.error('End of stream')
+      return monad.Error()('End of stream')
     end
 
     local ok, frame, frame_type = coroutine.resume(self.frame_reader)
 
     if not ok then
-      return result.error(frame)
+      return monad.Error()(frame)
     end
 
     if frame_type == 'video' then
-      return result(frame)
+      return monad.Value()(new_video_frame(frame))
     end
   end
 end
@@ -304,7 +304,8 @@ function Video:each_frame(video_callback, audio_callback)
   end
 end
 
-function Video:frame_to_ascii(frame)
+function VideoFrame:to_ascii()
+  local frame = self.ffi_frame
   if frame.format ~= libavutil.AV_PIX_FMT_GRAY8 then
     error(string.format(
       'Unexpected pixel format "%s", frame_to_ascii requires "%s"',
@@ -336,5 +337,6 @@ function Video:frame_to_ascii(frame)
 end
 
 M.Video = Video
+M.VideoFrame = VideoFrame
 
 return M

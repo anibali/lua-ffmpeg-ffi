@@ -1,38 +1,23 @@
--- Credit: https://github.com/douglascrockford/monad
+-- Some code is based on https://github.com/douglascrockford/monad
 
 local M = {}
 
 function M.new(modifier)
-  local proto = {is_monad=true}
+  local proto = {}
 
   local unit = {}
 
   local function unit_call(self, value)
-    local monad = {}
-    monad.bind = function(func, name, ...)
+    local monad = {is_monad=true}
+    setmetatable(monad, {__index = proto})
+    monad.bind = function(func, ...)
       func(value, ...)
     end
-    -- Using this function is a cop-out
     monad.get = function()
       return value
     end
-    -- Yes, this is crazy
-    setmetatable(monad, {__index = function(t, key)
-      if proto[key] then return proto[key] end
-      if type(value) == 'table' and type(value[key]) == 'function' then
-        return function(self, ...)
-          local result = self.bind(value[key], name, ...)
-          if type(result) == 'table' and result.is_monad then
-            return result
-          else
-            return unit(result)
-          end
-        end
-      end
-      return function() return monad end
-    end})
     if modifier ~= nil then
-      value = modifier(unit, monad, value)
+      value = modifier(monad, value)
     end
     return monad
   end
@@ -45,14 +30,14 @@ function M.new(modifier)
 
   unit.lift_value = function(name, func)
     proto[name] = function(self, ...)
-      return self.bind(func, name, ...)
+      return self.bind(func, ...)
     end
     return unit
   end
 
   unit.lift = function(name, func)
     proto[name] = function(self, ...)
-      local result = self.bind(func, name, ...)
+      local result = self.bind(func, ...)
       if type(result) == 'table' and result.is_monad then
         return result
       else
@@ -66,7 +51,7 @@ function M.new(modifier)
 end
 
 function M.Maybe()
-  local maybe = M.new(function(unit, monad, value)
+  return M.new(function(monad, value)
     if value == nil then
       monad.is_nil = true
       monad.bind = function() return monad end
@@ -76,8 +61,6 @@ function M.Maybe()
     end
     return value
   end)
-
-  return maybe
 end
 
 -- Expected usage:
@@ -90,43 +73,64 @@ local function return_value_or_error_monad(make_error_monad, ok, err, ...)
   end
 end
 
-function M.Either()
-  local either = M.new(function(unit, monad, value)
-    monad.is_error = false
-    monad.bind = function(func, name, ...)
-      if (name == 'catch') ~= monad.is_error then
-        return monad
-      else
-        return return_value_or_error_monad(unit.error, pcall(func, value, ...))
-      end
+function M.Error()
+  return M.new(function(monad, value)
+    monad.bind = function(func, ...)
+      return return_value_or_error_monad(M.Error(), pcall(func, value, ...))
     end
-    -- Using this function is a cop-out
     monad.get = function()
-      if monad.is_error then
-        -- Can't get value when monad is error, so raise the error
-        error(value)
+      error('Cannot get value because an error occurred: ' .. tostring(value))
+    end
+    monad.catch = function(self, callback)
+      local result = self.bind(callback)
+      if type(result) == 'table' and result.is_monad then
+        return result
       else
-        return value
+        return M.Value()(result)
       end
     end
+    monad.and_then = function(self, callback)
+      return monad
+    end
+    setmetatable(monad, {__index = function(t, key)
+      return function() return monad end
+    end})
     return value
   end)
+end
 
-  either.lift('catch', function(value, callback)
-    callback(value)
+function M.Value()
+  return M.new(function(monad, value)
+    monad.bind = function(func, ...)
+      return return_value_or_error_monad(M.Error(), pcall(func, value, ...))
+    end
+    monad.catch = function(self, callback)
+      return monad
+    end
+    monad.and_then = function(self, callback)
+      local result = self.bind(callback)
+      if type(result) == 'table' and result.is_monad then
+        return result
+      else
+        return M.Value()(result)
+      end
+    end
+    setmetatable(monad, {__index = function(t, key)
+      if type(value) == 'table' and type(value[key]) == 'function' then
+        return function(self, ...)
+          local result = self.bind(value[key], ...)
+          if type(result) == 'table' and result.is_monad then
+            return result
+          else
+            return M.Value()(result)
+          end
+        end
+      else
+        error(string.format('No method "%s" on value', key))
+      end
+    end})
+    return value
   end)
-
-  either.lift('and_then', function(value, callback)
-    callback(value)
-  end)
-
-  function either.error(value)
-    local monad = either(value)
-    monad.is_error = true
-    return monad
-  end
-
-  return either
 end
 
 return M

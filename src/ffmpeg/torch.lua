@@ -9,7 +9,8 @@ local bit = require('bit')
 local PIX_FMT_PLANAR = 16
 local PIX_FMT_RGB = 32
 
-function ffmpeg.Video:frame_to_tensor(frame)
+function ffmpeg.VideoFrame:to_tensor()
+  local frame = self.ffi_frame
   local desc = ffmpeg.libavutil.av_pix_fmt_desc_get(frame.format)
   local is_packed_rgb =
     bit.band(desc.flags, bit.bor(PIX_FMT_PLANAR, PIX_FMT_RGB)) == PIX_FMT_RGB
