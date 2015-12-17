@@ -1,16 +1,19 @@
 local ffi = require('ffi')
 local monad = require('monad')
+local datafile = require('datafile')
 
 local M = {}
 local Video = {}
 
-function script_path()
-   local str = debug.getinfo(2, "S").source:sub(2)
-   return str:match("(.*/)")
+local fd, includes_path = datafile.open('includes.h')
+if fd then
+  fd:close()
+else
+  error(includes_path)
 end
 
 -- Preprocess header files to get C declarations
-local file = io.popen('cpp -P -w -x c ' .. script_path() .. '/includes.h')
+local file = io.popen('cpp -P -w -x c ' .. includes_path)
 local def = file:read('*all')
 file:close()
 

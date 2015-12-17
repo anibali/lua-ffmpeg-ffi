@@ -48,6 +48,9 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 # Install busted for running tests
 RUN luarocks install busted
 
+# Install datafile for loading files bundled with the project
+RUN luarocks install datafile
+
 # Make working directory for this project
 RUN mkdir -p /app/test
 WORKDIR /app
