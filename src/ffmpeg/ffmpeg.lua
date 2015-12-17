@@ -74,30 +74,33 @@ libavformat.av_register_all()
 -- Initialize libavfilter
 libavfilter.avfilter_register_all()
 
-local function init_frame_reader(self)
-  local packet = ffi.new('AVPacket[1]')
-  libavcodec.av_init_packet(packet)
-  ffi.gc(packet, libavformat.av_packet_unref)
+local function create_frame_reader(self)
+  local frame_reader = coroutine.create(function()
+    local packet = ffi.new('AVPacket[1]')
+    libavcodec.av_init_packet(packet)
+    ffi.gc(packet, libavformat.av_packet_unref)
 
-  local frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
-  if frame[0] == 0 then
-    error('Failed to allocate frame')
-  end
-  ffi.gc(frame, function(ptr)
-    libavutil.av_frame_unref(ptr[0])
-    libavutil.av_frame_free(ptr)
-  end)
+    local frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
+    if frame[0] == 0 then
+      error('Failed to allocate frame')
+    end
+    ffi.gc(frame, function(ptr)
+      libavutil.av_frame_unref(ptr[0])
+      libavutil.av_frame_free(ptr)
+    end)
 
-  local filtered_frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
-  if filtered_frame[0] == 0 then
-    error('Failed to allocate filtered_frame')
-  end
-  ffi.gc(filtered_frame, function(ptr)
-    libavutil.av_frame_unref(ptr[0])
-    libavutil.av_frame_free(ptr)
-  end)
+    local filtered_frame
+    if self.is_filtered then
+      filtered_frame = ffi.new('AVFrame*[1]', libavutil.av_frame_alloc())
+      if filtered_frame[0] == 0 then
+        error('Failed to allocate filtered_frame')
+      end
+      ffi.gc(filtered_frame, function(ptr)
+        libavutil.av_frame_unref(ptr[0])
+        libavutil.av_frame_free(ptr)
+      end)
+    end
 
-  self.frame_reader = coroutine.create(function()
     while libavformat.av_read_frame(self.format_context[0], packet) == 0 do
       -- Make sure packet is from video stream
       if packet[0].stream_index == self.video_stream_index then
@@ -132,6 +135,8 @@ local function init_frame_reader(self)
       end
     end
   end)
+
+  return frame_reader
 end
 
 function M.new(path)
@@ -171,7 +176,7 @@ function M.new(path)
   -- -- Print format info
   -- libavformat.av_dump_format(self.format_context[0], 0, path, 0)
 
-  init_frame_reader(self)
+  self.frame_reader = create_frame_reader(self)
 
   return self
 end
