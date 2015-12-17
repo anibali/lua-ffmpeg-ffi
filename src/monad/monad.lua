@@ -4,6 +4,13 @@ local M = {}
 
 function M.new(modifier)
   local proto = {is_monad=true}
+  -- This piece of weirdness turns missing fields into functions that return
+  -- the monad itself. This stops chains from breaking.
+  setmetatable(proto, {__index = function(t, key)
+    return function()
+      return t
+    end
+  end})
 
   local unit = {}
 
@@ -18,7 +25,7 @@ function M.new(modifier)
       return value
     end
     if modifier ~= nil then
-      value = modifier(monad, value)
+      value = modifier(unit, monad, value)
     end
     return monad
   end
@@ -52,7 +59,7 @@ function M.new(modifier)
 end
 
 function M.Maybe()
-  local maybe = M.new(function(monad, value)
+  local maybe = M.new(function(unit, monad, value)
     if value == nil then
       monad.is_nil = true
       monad.bind = function() return monad end
@@ -66,14 +73,24 @@ function M.Maybe()
   return maybe
 end
 
+-- Expected usage:
+--    return_value_or_error_monad(make_error_monad, pcall(func, ...))
+local function return_value_or_error_monad(make_error_monad, ok, err, ...)
+  if ok then
+    return err, ...
+  else
+    return make_error_monad(debug.traceback(err, 3))
+  end
+end
+
 function M.Either()
-  local either = M.new(function(monad, value)
+  local either = M.new(function(unit, monad, value)
     monad.is_error = false
     monad.bind = function(func, name, ...)
       if (name == 'catch') ~= monad.is_error then
         return monad
       else
-        return func(value, ...)
+        return return_value_or_error_monad(unit.error, pcall(func, value, ...))
       end
     end
     -- Using this function is a cop-out
