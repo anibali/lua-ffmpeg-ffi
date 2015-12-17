@@ -1,21 +1,29 @@
 local ffi = require('ffi')
 local monad = require('monad')
-local datafile = require('datafile')
 
 local M = {}
 local Video = {}
 
-local fd, includes_path = datafile.open('includes.h')
-if fd then
-  fd:close()
-else
-  error(includes_path)
-end
+-- Write includes to a temporary file
+local includes_path = os.tmpname()
+local includes_file = io.open(includes_path, 'w')
+includes_file:write[[
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavfilter/avfiltergraph.h>
+#include <libavfilter/avcodec.h>
+#include <libavfilter/buffersink.h>
+#include <libavfilter/buffersrc.h>
+#include <libavutil/opt.h>
+#include <libavutil/imgutils.h>
+]]
+includes_file:close()
 
 -- Preprocess header files to get C declarations
-local file = io.popen('cpp -P -w -x c ' .. includes_path)
-local def = file:read('*all')
-file:close()
+local cpp_output = io.popen('cpp -P -w -x c ' .. includes_path)
+local def = cpp_output:read('*all')
+cpp_output:close()
+os.remove(includes_path)
 
 -- Parse C declarations with FFI
 ffi.cdef(def)
