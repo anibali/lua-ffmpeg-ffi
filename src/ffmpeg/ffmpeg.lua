@@ -1,3 +1,10 @@
+------------
+-- Lua bindings to FFmpeg libraries.
+-- @module ffmpeg
+-- @author Aiden Nibali
+-- @license MIT
+-- @copyright Aiden Nibali 2015
+
 local ffi = require('ffi')
 local monad = require('monad')
 
@@ -147,6 +154,11 @@ local function create_frame_reader(self)
   return frame_reader
 end
 
+---- Opens a video file for reading.
+--
+-- @string path A relative or absolute path to the video file.
+-- @return A `Video` wrapped in a `monad.Value` if successful,
+-- a `monad.Error` otherwise.
 function M.new(path)
   local self = {is_filtered = false}
   setmetatable(self, {__index = Video})
@@ -189,6 +201,21 @@ function M.new(path)
   return monad.Value()(self)
 end
 
+---- Sets a filter to apply to the video.
+--
+-- For example, if you want to scale the video to 128x128 pixels, flip
+-- horizontally and output frames in 24-bit RGB:
+--
+--    video:filter('rgb24', 'scale=128x128,hflip')
+--
+-- @string pixel_format_name The name of the desired output pixel format.
+-- Pixel names can be found in
+-- [pixdesc.c](https://www.ffmpeg.org/doxygen/1.1/pixdesc_8c_source.html).
+-- @string[opt='null'] filterchain The filterchain to be applied. Refer to the
+-- [libav documentation](https://libav.org/documentation/libavfilter.html)
+-- for the syntax of this string.
+-- @return A `Video` wrapped in a `monad.Value` if successful,
+-- a `monad.Error` otherwise.
 function Video:filter(pixel_format_name, filterchain)
   filterchain = filterchain or 'null'
   local buffersrc = libavfilter.avfilter_get_by_name('buffer');
@@ -264,15 +291,17 @@ function Video:filter(pixel_format_name, filterchain)
   return monad.Value()(self)
 end
 
--- Get video duration in seconds
+---- Gets the video duration in seconds.
 function Video:duration()
   return tonumber(self.format_context[0].duration) / 1000000.0
 end
 
+---- Gets the name of the video pixel format.
 function Video:pixel_format_name()
   return ffi.string(libavutil.av_get_pix_fmt_name(self.video_decoder_context.pix_fmt))
 end
 
+---- Reads the next video frame.
 function Video:read_video_frame()
   while true do
     if coroutine.status(self.frame_reader) == 'dead' then
@@ -304,6 +333,7 @@ function Video:each_frame(video_callback, audio_callback)
   end
 end
 
+---- Converts the video frame to an ASCII visualisation.
 function VideoFrame:to_ascii()
   local frame = self.ffi_frame
   if frame.format ~= libavutil.AV_PIX_FMT_GRAY8 then

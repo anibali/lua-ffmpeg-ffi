@@ -1,3 +1,10 @@
+------------
+-- Monad stuffs.
+-- @module monad
+-- @author Aiden Nibali
+-- @license MIT
+-- @copyright Aiden Nibali 2015
+
 -- Some code is based on https://github.com/douglascrockford/monad
 
 local M = {}

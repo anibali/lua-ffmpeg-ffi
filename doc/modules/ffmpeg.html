@@ -1,0 +1,237 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<head>
+    <title>Reference</title>
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
+</head>
+<body>
+
+<div id="container">
+
+<div id="product">
+	<div id="product_logo"></div>
+	<div id="product_name"><big><b></b></big></div>
+	<div id="product_description"></div>
+</div> <!-- id="product" -->
+
+
+<div id="main">
+
+
+<!-- Menu -->
+
+<div id="navigation">
+<br/>
+<h1>ldoc</h1>
+
+<ul>
+  <li><a href="../index.html">Index</a></li>
+</ul>
+
+<h2>Contents</h2>
+<ul>
+<li><a href="#Functions">Functions</a></li>
+</ul>
+
+
+<h2>Modules</h2>
+<ul class="$(kind=='Topics' and '' or 'nowrap'">
+  <li><strong>ffmpeg</strong></li>
+  <li><a href="../modules/ffmpeg.torch.html">ffmpeg.torch</a></li>
+  <li><a href="../modules/monad.html">monad</a></li>
+</ul>
+
+</div>
+
+<div id="content">
+
+<h1>Module <code>ffmpeg</code></h1>
+<p>Lua bindings to FFmpeg libraries.</p>
+<p>
+
+</p>
+    <h3>Info:</h3>
+    <ul>
+        <li><strong>Copyright</strong>: Aiden Nibali 2015</li>
+        <li><strong>License</strong>: MIT</li>
+        <li><strong>Author</strong>: Aiden Nibali</li>
+    </ul>
+
+
+<h2><a href="#Functions">Functions</a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#new">new (path)</a></td>
+	<td class="summary">Opens a video file for reading.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Video:filter">Video:filter (pixel_format_name[, filterchain='null'])</a></td>
+	<td class="summary">Sets a filter to apply to the video.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Video:duration">Video:duration ()</a></td>
+	<td class="summary">Gets the video duration in seconds.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Video:pixel_format_name">Video:pixel_format_name ()</a></td>
+	<td class="summary">Gets the name of the video pixel format.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Video:read_video_frame">Video:read_video_frame ()</a></td>
+	<td class="summary">Reads the next video frame.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#VideoFrame:to_ascii">VideoFrame:to_ascii ()</a></td>
+	<td class="summary">Converts the video frame to an ASCII visualisation.</td>
+	</tr>
+</table>
+
+<br/>
+<br/>
+
+
+    <h2 class="section-header "><a name="Functions"></a>Functions</h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "new"></a>
+    <strong>new (path)</strong>
+    </dt>
+    <dd>
+    Opens a video file for reading.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">path</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         A relative or absolute path to the video file.
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+        A <code>Video</code> wrapped in a <code>monad.Value</code> if successful,
+ a <code>monad.Error</code> otherwise.
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Video:filter"></a>
+    <strong>Video:filter (pixel_format_name[, filterchain='null'])</strong>
+    </dt>
+    <dd>
+
+<p>Sets a filter to apply to the video. </p>
+
+<p> For example, if you want to scale the video to 128x128 pixels, flip
+ horizontally and output frames in 24-bit RGB:</p>
+
+<pre><code>video:filter('rgb24', 'scale=128x128,hflip')
+</code></pre>
+
+
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">pixel_format_name</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         The name of the desired output pixel format.
+ Pixel names can be found in
+ <a href="https://www.ffmpeg.org/doxygen/1.1/pixdesc_8c_source.html">pixdesc.c</a>.
+        </li>
+        <li><span class="parameter">filterchain</span>
+            <span class="types"><a class="type" href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a></span>
+         The filterchain to be applied. Refer to the
+ <a href="https://libav.org/documentation/libavfilter.html">libav documentation</a>
+ for the syntax of this string.
+         (<em>default</em> 'null')
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+        A <code>Video</code> wrapped in a <code>monad.Value</code> if successful,
+ a <code>monad.Error</code> otherwise.
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Video:duration"></a>
+    <strong>Video:duration ()</strong>
+    </dt>
+    <dd>
+    Gets the video duration in seconds.
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Video:pixel_format_name"></a>
+    <strong>Video:pixel_format_name ()</strong>
+    </dt>
+    <dd>
+    Gets the name of the video pixel format.
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Video:read_video_frame"></a>
+    <strong>Video:read_video_frame ()</strong>
+    </dt>
+    <dd>
+    Reads the next video frame.
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "VideoFrame:to_ascii"></a>
+    <strong>VideoFrame:to_ascii ()</strong>
+    </dt>
+    <dd>
+    Converts the video frame to an ASCII visualisation.
+
+
+
+
+
+
+
+</dd>
+</dl>
+
+
+</div> <!-- id="content" -->
+</div> <!-- id="main" -->
+<div id="about">
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
+<i style="float:right;">Last updated 2015-12-17 20:15:23 </i>
+</div> <!-- id="about" -->
+</div> <!-- id="container" -->
+</body>
+</html>
