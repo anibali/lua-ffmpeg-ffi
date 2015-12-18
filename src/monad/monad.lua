@@ -1,11 +1,13 @@
 ------------
 -- Monad stuffs.
+--
+-- Some code is based on
+-- [Douglas Crockford's JavaScript monads](https://github.com/douglascrockford/monad).
+--
 -- @module monad
 -- @author Aiden Nibali
 -- @license MIT
 -- @copyright Aiden Nibali 2015
-
--- Some code is based on https://github.com/douglascrockford/monad
 
 local M = {}
 
@@ -80,6 +82,67 @@ local function return_value_or_error_monad(make_error_monad, ok, err, ...)
   end
 end
 
+--- A theoretical union type for `Value` and `Error`.
+--
+-- For example, if a function is documented as returning a `string` `Result`,
+-- this means that it returns a `Value` wrapping a `string` on success, or an
+-- `Error` otherwise.
+--
+-- Here's an example of using a function that returns a `Result`:
+--
+--    some_function():and_then(function(value)
+--      print('some_function returned ' .. value)
+--    end):catch(function(error_message))
+--      print('Error calling some_function: ' .. error_message)
+--    end)
+--
+-- However, the real beauty of this approach comes with chaining calls:
+--
+--    create_a_shape()
+--      :scale(2)
+--      :rotate(45)
+--      :translate(10, 5)
+--      :catch(function(error_message))
+--        print('Error creating and transforming shape: ' .. error_message)
+--      end)
+--
+-- In the above example we assume that create_a_shape() returns a `Result`.
+-- If any of the steps along the way fails, no further methods will be called
+-- and the catch function will be triggered. If all of the steps are successful,
+-- the catch function will not be called.
+--
+-- At some point you may want to unwrap a `Value` to get the actual value inside
+-- of it. A good pattern for doing this is as follows:
+--
+--    local my_shape = create_a_shape()
+--      :scale(2)
+--      :rotate(45)
+--      :translate(10, 5)
+--      :catch(function(error_message))
+--        return default_shape
+--      end)
+--      :get()
+--
+-- `:get` is a special function which returns the value wrapped by a `Value`.
+-- But be careful! If you call `get` on an `Error` then a Lua error will be
+-- raised - this is why in the example above we make sure that we make a
+-- default value available in the case of an `Error`.
+--
+-- @type Result
+
+---- Ignore this.
+function __ldoc_placeholder() end
+
+--- @section end
+
+---- Represents an error result.
+--
+-- An `Error` monad will:
+--
+-- * Raise an error when `:get()` is called on it.
+-- * Call the function `callback` with the error message when `:catch(callback)`
+-- is called on it.
+-- * Return itself in response to all other method calls.
 function M.Error()
   return M.new(function(monad, value)
     monad.bind = function(func, ...)
@@ -106,6 +169,16 @@ function M.Error()
   end)
 end
 
+---- Represents a successful result value.
+--
+-- A `Value` monad will:
+--
+-- * Return its wrapped value `:get()` is called on it.
+-- * Call the function `callback` with the wrapped value when
+-- `:and_then(callback)` is called on it.
+-- * Return itself in response to `:catch()`.
+-- * Delegate to the wrapped value in response to all other method calls and
+-- present the return value as a `Result`.
 function M.Value()
   return M.new(function(monad, value)
     monad.bind = function(func, ...)

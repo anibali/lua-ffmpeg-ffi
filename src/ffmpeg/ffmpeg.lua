@@ -157,8 +157,7 @@ end
 ---- Opens a video file for reading.
 --
 -- @string path A relative or absolute path to the video file.
--- @return A `Video` wrapped in a `monad.Value` if successful,
--- a `monad.Error` otherwise.
+-- @treturn monad.Result A `Video`.
 function M.new(path)
   local self = {is_filtered = false}
   setmetatable(self, {__index = Video})
@@ -201,6 +200,9 @@ function M.new(path)
   return monad.Value()(self)
 end
 
+--- A Video class.
+-- @type Video
+
 ---- Sets a filter to apply to the video.
 --
 -- For example, if you want to scale the video to 128x128 pixels, flip
@@ -214,9 +216,10 @@ end
 -- @string[opt='null'] filterchain The filterchain to be applied. Refer to the
 -- [libav documentation](https://libav.org/documentation/libavfilter.html)
 -- for the syntax of this string.
--- @return A `Video` wrapped in a `monad.Value` if successful,
--- a `monad.Error` otherwise.
+-- @treturn monad.Result A `Video`.
 function Video:filter(pixel_format_name, filterchain)
+  assert(not self.is_filtered)
+
   filterchain = filterchain or 'null'
   local buffersrc = libavfilter.avfilter_get_by_name('buffer');
   local buffersink = libavfilter.avfilter_get_by_name('buffersink');
@@ -302,6 +305,7 @@ function Video:pixel_format_name()
 end
 
 ---- Reads the next video frame.
+-- @treturn monad.Result A `VideoFrame`.
 function Video:read_video_frame()
   while true do
     if coroutine.status(self.frame_reader) == 'dead' then
@@ -332,6 +336,9 @@ function Video:each_frame(video_callback, audio_callback)
     end)
   end
 end
+
+--- A VideoFrame class.
+-- @type VideoFrame
 
 ---- Converts the video frame to an ASCII visualisation.
 function VideoFrame:to_ascii()

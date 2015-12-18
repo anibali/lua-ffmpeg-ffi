@@ -13,8 +13,8 @@ describe('ffmpeg.torch', function()
       video = ffmpeg.new('./test/data/centaur_1.mpg')
     end)
 
-    describe(':frame_to_tensor', function()
-      it('should convert greyscale frame into a 1-channel image tensor', function()
+    describe(':to_byte_tensor', function()
+      it('should convert greyscale frame into a 1-channel byte tensor', function()
         -- 3x3 pixel greyscale version of first frame
         local expected = {{
           {0, 1, 0},
@@ -27,7 +27,7 @@ describe('ffmpeg.torch', function()
         video
           :filter('gray', 'scale=3:3')
           :read_video_frame()
-          :to_tensor()
+          :to_byte_tensor()
           :and_then(function(tensor)
             actual = tensor:totable()
           end)
@@ -38,13 +38,13 @@ describe('ffmpeg.torch', function()
         assert.are.same(expected, actual)
       end)
 
-      it('should convert RGB frame into a 3-channel image tensor', function()
+      it('should convert RGB frame into a 3-channel byte tensor', function()
         local actual_tensor = '<unset>'
 
         video
           :filter('rgb24', 'scale=16:16')
           :read_video_frame()
-          :to_tensor()
+          :to_byte_tensor()
           :and_then(function(tensor)
             actual_tensor = tensor
           end)

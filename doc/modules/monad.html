@@ -3,7 +3,7 @@
 <html>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
 <head>
-    <title>Reference</title>
+    <title>ffmpeg-ffi docs</title>
     <link rel="stylesheet" href="../ldoc.css" type="text/css" />
 </head>
 <body>
@@ -24,12 +24,17 @@
 
 <div id="navigation">
 <br/>
-<h1>ldoc</h1>
+<h1>ffmpeg-ffi</h1>
 
 <ul>
   <li><a href="../index.html">Index</a></li>
 </ul>
 
+<h2>Contents</h2>
+<ul>
+<li><a href="#Functions">Functions</a></li>
+<li><a href="#Class_Result">Class Result </a></li>
+</ul>
 
 
 <h2>Modules</h2>
@@ -38,6 +43,11 @@
   <li><a href="../modules/ffmpeg.torch.html">ffmpeg.torch</a></li>
   <li><strong>monad</strong></li>
 </ul>
+<h2>Topics</h2>
+<ul class="$(kind=='Topics' and '' or 'nowrap'">
+  <li><a href="../topics/README.md.html">README</a></li>
+  <li><a href="../topics/LICENSE.html">LICENSE</a></li>
+</ul>
 
 </div>
 
@@ -45,9 +55,8 @@
 
 <h1>Module <code>monad</code></h1>
 <p>Monad stuffs.</p>
-<p>
-
-</p>
+<p> Some code is based on
+ <a href="https://github.com/douglascrockford/monad">Douglas Crockford's JavaScript monads</a>.</p>
     <h3>Info:</h3>
     <ul>
         <li><strong>Copyright</strong>: Aiden Nibali 2015</li>
@@ -56,18 +65,160 @@
     </ul>
 
 
+<h2><a href="#Functions">Functions</a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#Error">Error ()</a></td>
+	<td class="summary">Represents an error result.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Value">Value ()</a></td>
+	<td class="summary">Represents a successful result value.</td>
+	</tr>
+</table>
+<h2><a href="#Class_Result">Class Result </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#Result:__ldoc_placeholder">Result:__ldoc_placeholder ()</a></td>
+	<td class="summary">Ignore this.</td>
+	</tr>
+</table>
 
 <br/>
 <br/>
 
 
+    <h2 class="section-header "><a name="Functions"></a>Functions</h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "Error"></a>
+    <strong>Error ()</strong>
+    </dt>
+    <dd>
+
+<p>Represents an error result. </p>
+
+<p> An <a href="../modules/monad.html#Error">Error</a> monad will:</p>
+
+<ul>
+    <li>Raise an error when <code>:get()</code> is called on it.</li>
+    <li>Call the function <code>callback</code> with the error message when <code>:catch(callback)</code>
+    is called on it.</li>
+    <li>Return itself in response to all other method calls.</li>
+</ul>
+
+
+
+
+
+
+
+
+</dd>
+    <dt>
+    <a name = "Value"></a>
+    <strong>Value ()</strong>
+    </dt>
+    <dd>
+
+<p>Represents a successful result value. </p>
+
+<p> A <a href="../modules/monad.html#Value">Value</a> monad will:</p>
+
+<ul>
+    <li>Return its wrapped value <code>:get()</code> is called on it.</li>
+    <li>Call the function <code>callback</code> with the wrapped value when
+    <code>:and_then(callback)</code> is called on it.</li>
+    <li>Return itself in response to <code>:catch()</code>.</li>
+    <li>Delegate to the wrapped value in response to all other method calls and
+    present the return value as a <a href="../modules/monad.html#Result">Result</a>.</li>
+</ul>
+
+
+
+
+
+
+
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_Result"></a>Class Result </h2>
+
+          <div class="section-description">
+          A theoretical union type for <a href="../modules/monad.html#Value">Value</a> and <a href="../modules/monad.html#Error">Error</a>. </p>
+
+<p> For example, if a function is documented as returning a <a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a> <a href="../modules/monad.html#Result">Result</a>,
+ this means that it returns a <a href="../modules/monad.html#Value">Value</a> wrapping a <a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a> on success, or an
+ <a href="../modules/monad.html#Error">Error</a> otherwise.</p>
+
+<p> Here's an example of using a function that returns a <a href="../modules/monad.html#Result">Result</a>:</p>
+
+<pre><code>some_function():and_then(function(value)
+  print('some_function returned ' .. value)
+end):catch(function(error_message))
+  print('Error calling some_function: ' .. error_message)
+end)
+</code></pre>
+
+<p> However, the real beauty of this approach comes with chaining calls:</p>
+
+<pre><code>create_a_shape()
+  :scale(2)
+  :rotate(45)
+  :translate(10, 5)
+  :catch(function(error_message))
+    print('Error creating and transforming shape: ' .. error_message)
+  end)
+</code></pre>
+
+<p> In the above example we assume that create<em>a</em>shape() returns a <a href="../modules/monad.html#Result">Result</a>.
+ If any of the steps along the way fails, no further methods will be called
+ and the catch function will be triggered. If all of the steps are successful,
+ the catch function will not be called.</p>
+
+<p> At some point you may want to unwrap a <a href="../modules/monad.html#Value">Value</a> to get the actual value inside
+ of it. A good pattern for doing this is as follows:</p>
+
+<pre><code>local my_shape = create_a_shape()
+  :scale(2)
+  :rotate(45)
+  :translate(10, 5)
+  :catch(function(error_message))
+    return default_shape
+  end)
+  :get()
+</code></pre>
+
+<p> <code>:get</code> is a special function which returns the value wrapped by a <a href="../modules/monad.html#Value">Value</a>.
+ But be careful! If you call <code>get</code> on an <a href="../modules/monad.html#Error">Error</a> then a Lua error will be
+ raised - this is why in the example above we make sure that we make a
+ default value available in the case of an <a href="../modules/monad.html#Error">Error</a>.
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "Result:__ldoc_placeholder"></a>
+    <strong>Result:__ldoc_placeholder ()</strong>
+    </dt>
+    <dd>
+    Ignore this.
+
+
+
+
+
+
+
+</dd>
+</dl>
 
 
 </div> <!-- id="content" -->
 </div> <!-- id="main" -->
 <div id="about">
 <i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
-<i style="float:right;">Last updated 2015-12-17 20:15:23 </i>
+<i style="float:right;">Last updated 2015-12-18 20:13:54 </i>
 </div> <!-- id="about" -->
 </div> <!-- id="container" -->
 </body>

@@ -1,5 +1,7 @@
 ------------
--- Torch utilities for Lua bindings to FFmpeg libraries.
+-- Torch utilities for Lua bindings to FFmpeg libraries. The Torch module must
+-- be installed for `ffmpeg.torch` to work.
+--
 -- @module ffmpeg.torch
 -- @author Aiden Nibali
 -- @license MIT
@@ -18,8 +20,11 @@ local PIX_FMT_RGB = 32
 
 local VideoFrame = ffmpeg.VideoFrame
 
+--- A VideoFrame class.
+-- @type VideoFrame
+
 ---- Converts the video frame to a Torch tensor.
-function VideoFrame:to_tensor()
+function VideoFrame:to_byte_tensor()
   local frame = self.ffi_frame
   local desc = ffmpeg.libavutil.av_pix_fmt_desc_get(frame.format)
   local is_packed_rgb =
