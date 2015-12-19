@@ -19,10 +19,10 @@ function M.new(modifier)
   local function unit_call(self, value)
     local monad = {is_monad=true}
     setmetatable(monad, {__index = proto})
-    monad.bind = function(func, ...)
+    function monad.bind(func, ...)
       func(value, ...)
     end
-    monad.get = function()
+    function monad:get()
       return value
     end
     if modifier ~= nil then
@@ -135,23 +135,33 @@ function __ldoc_placeholder() end
 
 --- @section end
 
----- Represents an error result.
+---- Returns a factory for making `Error` monads.
 --
--- An `Error` monad will:
---
--- * Raise an error when `:get()` is called on it.
--- * Call the function `callback` with the error message when `:catch(callback)`
--- is called on it.
--- * Return itself in response to all other method calls.
+--    local error_factory = monad.Error()
+--    local error_monad = error_factory('An error occurred!')
 function M.Error()
+  ---- A monad which represents an error result.
+  --
+  -- An `Error` monad will:
+  --
+  -- * Throw an error when `:get()` is called on it.
+  -- * Call the function `callback` with the error message when `:catch(callback)`
+  -- is called on it.
+  -- * Return itself in response to all other method calls.
+  -- @type Error
   return M.new(function(monad, value)
-    monad.bind = function(func, ...)
+    function monad.bind(func, ...)
       return return_value_or_error_monad(M.Error(), pcall(func, value, ...))
     end
-    monad.get = function()
-      error('Cannot get value because an error occurred: ' .. tostring(value))
+    ---- Rethrows the error when called.
+    -- @return Nothing, since this method always throws an error.
+    function monad:get()
+      error(tostring(value))
     end
-    monad.catch = function(self, callback)
+    ---- Calls function `callback` with the error message.
+    -- @func callback
+    -- @treturn Result The result of calling `callback`.
+    function monad:catch(callback)
       local result = self.bind(callback)
       if type(result) == 'table' and result.is_monad then
         return result
@@ -159,35 +169,56 @@ function M.Error()
         return M.Value()(result)
       end
     end
-    monad.and_then = function(self, callback)
-      return monad
+    ---- Returns self (`callback` is *not* called).
+    -- @func callback
+    -- @treturn Error Self.
+    function monad:and_then(callback)
+      return self
     end
     setmetatable(monad, {__index = function(t, key)
       return function() return monad end
     end})
     return value
   end)
+  --- @section end
 end
 
----- Represents a successful result value.
+---- Returns a factory for making `Value` monads.
 --
--- A `Value` monad will:
---
--- * Return its wrapped value `:get()` is called on it.
--- * Call the function `callback` with the wrapped value when
--- `:and_then(callback)` is called on it.
--- * Return itself in response to `:catch()`.
--- * Delegate to the wrapped value in response to all other method calls and
--- present the return value as a `Result`.
+--    local value_factory = monad.Value()
+--    local value_monad = value_factory(42)
 function M.Value()
+  ---- A monad which represents a successful result value.
+  --
+  -- A `Value` monad will:
+  --
+  -- * Return its wrapped value when `:get()` is called on it.
+  -- * Call the function `callback` with the wrapped value when
+  -- `:and_then(callback)` is called on it.
+  -- * Return itself in response to `:catch()`.
+  -- * Delegate to the wrapped value in response to all other method calls and
+  -- present the return value as a `Result`.
+  --
+  -- @type Value
   return M.new(function(monad, value)
-    monad.bind = function(func, ...)
+    function monad.bind(func, ...)
       return return_value_or_error_monad(M.Error(), pcall(func, value, ...))
     end
-    monad.catch = function(self, callback)
-      return monad
+    ---- Returns the wrapped value.
+    -- @return The wrapped value.
+    function monad:get()
+      return value
     end
-    monad.and_then = function(self, callback)
+    ---- Returns self (`callback` is *not* called).
+    -- @func callback
+    -- @treturn Value Self.
+    function monad:catch(callback)
+      return self
+    end
+    ---- Calls function `callback` with the wrapped value.
+    -- @func callback
+    -- @treturn Result The result of calling `callback`.
+    function monad:and_then(callback)
       local result = self.bind(callback)
       if type(result) == 'table' and result.is_monad then
         return result
@@ -211,6 +242,7 @@ function M.Value()
     end})
     return value
   end)
+  --- @section end
 end
 
 return M

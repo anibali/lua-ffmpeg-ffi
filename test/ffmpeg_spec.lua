@@ -80,9 +80,7 @@ describe('ffmpeg', function()
           :and_then(function(frame)
             actual = frame
           end)
-          :catch(function(err)
-            error(err)
-          end)
+          :get()
 
         assert.are.same(expected, actual)
       end)

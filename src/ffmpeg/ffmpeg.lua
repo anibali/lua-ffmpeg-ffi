@@ -82,6 +82,20 @@ libavformat.av_register_all()
 -- Initialize libavfilter
 libavfilter.avfilter_register_all()
 
+local function copy_object(original)
+  local copy
+  if type(original) == 'table' then
+    copy = {}
+    for k, v in pairs(original) do
+      copy[k] = v
+    end
+    setmetatable(copy, getmetatable(original))
+  else
+    copy = original
+  end
+  return copy
+end
+
 local function new_video_frame(ffi_frame)
   local self = {ffi_frame = ffi_frame}
   setmetatable(self, {__index = VideoFrame})
@@ -195,8 +209,6 @@ function M.new(path)
   -- -- Print format info
   -- libavformat.av_dump_format(self.format_context[0], 0, path, 0)
 
-  self.frame_reader = create_frame_reader(self)
-
   return monad.Value()(self)
 end
 
@@ -208,7 +220,7 @@ end
 -- For example, if you want to scale the video to 128x128 pixels, flip
 -- horizontally and output frames in 24-bit RGB:
 --
---    video:filter('rgb24', 'scale=128x128,hflip')
+--    video = video:filter('rgb24', 'scale=128x128,hflip')
 --
 -- @string pixel_format_name The name of the desired output pixel format.
 -- Pixel names can be found in
@@ -216,9 +228,12 @@ end
 -- @string[opt='null'] filterchain The filterchain to be applied. Refer to the
 -- [libav documentation](https://libav.org/documentation/libavfilter.html)
 -- for the syntax of this string.
--- @treturn monad.Result A `Video`.
+-- @treturn monad.Result A copy of this `Video` with the specified filter set
+-- up.
 function Video:filter(pixel_format_name, filterchain)
   assert(not self.is_filtered)
+
+  local video = copy_object(self)
 
   filterchain = filterchain or 'null'
   local buffersrc = libavfilter.avfilter_get_by_name('buffer');
@@ -233,13 +248,13 @@ function Video:filter(pixel_format_name, filterchain)
 
   local args = string.format(
     'video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d',
-    self.video_decoder_context.width,
-    self.video_decoder_context.height,
-    tonumber(self.video_decoder_context.pix_fmt),
-    self.video_decoder_context.time_base.num,
-    self.video_decoder_context.time_base.den,
-    self.video_decoder_context.sample_aspect_ratio.num,
-    self.video_decoder_context.sample_aspect_ratio.den)
+    video.video_decoder_context.width,
+    video.video_decoder_context.height,
+    tonumber(video.video_decoder_context.pix_fmt),
+    video.video_decoder_context.time_base.num,
+    video.video_decoder_context.time_base.den,
+    video.video_decoder_context.sample_aspect_ratio.num,
+    video.video_decoder_context.sample_aspect_ratio.den)
 
   local buffersrc_context = ffi.new('AVFilterContext*[1]');
   if libavfilter.avfilter_graph_create_filter(
@@ -286,12 +301,12 @@ function Video:filter(pixel_format_name, filterchain)
     return monad.Error()('avfilter_graph_config failed')
   end
 
-  self.filter_graph = filter_graph
-  self.buffersrc_context = buffersrc_context
-  self.buffersink_context = buffersink_context
-  self.is_filtered = true
+  video.filter_graph = filter_graph
+  video.buffersrc_context = buffersrc_context
+  video.buffersink_context = buffersink_context
+  video.is_filtered = true
 
-  return monad.Value()(self)
+  return monad.Value()(video)
 end
 
 ---- Gets the video duration in seconds.
@@ -307,6 +322,8 @@ end
 ---- Reads the next video frame.
 -- @treturn monad.Result A `VideoFrame`.
 function Video:read_video_frame()
+  self.frame_reader = self.frame_reader or create_frame_reader(self)
+
   while true do
     if coroutine.status(self.frame_reader) == 'dead' then
       return monad.Error()('End of stream')
