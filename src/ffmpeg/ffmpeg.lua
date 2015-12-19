@@ -217,11 +217,6 @@ end
 
 ---- Sets a filter to apply to the video.
 --
--- For example, if you want to scale the video to 128x128 pixels, flip
--- horizontally and output frames in 24-bit RGB:
---
---    video = video:filter('rgb24', 'scale=128x128,hflip')
---
 -- @string pixel_format_name The name of the desired output pixel format.
 -- Pixel names can be found in
 -- [pixdesc.c](https://www.ffmpeg.org/doxygen/1.1/pixdesc_8c_source.html).
@@ -230,6 +225,11 @@ end
 -- for the syntax of this string.
 -- @treturn monad.Result A copy of this `Video` with the specified filter set
 -- up.
+--
+-- @usage
+-- -- Set up a filter which scales the video to 128x128 pixels, flips it
+-- -- horizontally and sets the output pixel format to 24-bit RGB:
+-- video = video:filter('rgb24', 'scale=128x128,hflip')
 function Video:filter(pixel_format_name, filterchain)
   assert(not self.is_filtered)
 

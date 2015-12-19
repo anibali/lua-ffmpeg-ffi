@@ -63,8 +63,12 @@ function M.Maybe()
   return M.new(function(monad, value)
     if value == nil then
       monad.is_nil = true
-      monad.bind = function() return monad end
-      monad.get = function() error('Maybe monad is empty') end
+      function monad.bind()
+        return monad
+      end
+      function monad:get()
+        error('Maybe monad is empty')
+      end
     else
       monad.is_nil = false
     end
@@ -130,7 +134,7 @@ end
 --
 -- @type Result
 
----- Ignore this.
+---- Ignore this function.
 function __ldoc_placeholder() end
 
 --- @section end
@@ -144,7 +148,7 @@ function M.Error()
   --
   -- An `Error` monad will:
   --
-  -- * Throw an error when `:get()` is called on it.
+  -- * Throw an error when `:get` or `:done` is called on it.
   -- * Call the function `callback` with the error message when `:catch(callback)`
   -- is called on it.
   -- * Return itself in response to all other method calls.
@@ -153,7 +157,13 @@ function M.Error()
     function monad.bind(func, ...)
       return return_value_or_error_monad(M.Error(), pcall(func, value, ...))
     end
-    ---- Rethrows the error when called.
+    ---- Alias for `Error:get`
+    -- @see Error:get
+    function monad:done(...)
+      return self:get(...)
+    end
+    ---- Rethrows the error.
+    --
     -- @return Nothing, since this method always throws an error.
     function monad:get()
       error(tostring(value))
@@ -192,7 +202,7 @@ function M.Value()
   --
   -- A `Value` monad will:
   --
-  -- * Return its wrapped value when `:get()` is called on it.
+  -- * Return its wrapped value when `:get` or `:done` is called on it.
   -- * Call the function `callback` with the wrapped value when
   -- `:and_then(callback)` is called on it.
   -- * Return itself in response to `:catch()`.
@@ -204,7 +214,13 @@ function M.Value()
     function monad.bind(func, ...)
       return return_value_or_error_monad(M.Error(), pcall(func, value, ...))
     end
+    ---- Alias for `Value:get`
+    -- @see Value:get
+    function monad:done(...)
+      return self:get()
+    end
     ---- Returns the wrapped value.
+    --
     -- @return The wrapped value.
     function monad:get()
       return value
