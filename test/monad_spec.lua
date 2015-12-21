@@ -1,4 +1,5 @@
 local monad = require('monad')
+local result = require('monad.result')
 
 describe('monad', function()
   describe('Maybe', function()
@@ -34,7 +35,7 @@ describe('monad', function()
     local error_monad
 
     before_each(function()
-      error_monad = monad.Error()('An error')
+      error_monad = result.Error()('An error')
     end)
 
     it('should call catch function callback', function()
@@ -54,7 +55,7 @@ describe('monad', function()
     local value_monad
 
     before_each(function()
-      value_monad = monad.Value()('A value')
+      value_monad = result.Value()('A value')
     end)
 
     it('should call catch function callback', function()
