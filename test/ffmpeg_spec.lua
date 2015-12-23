@@ -1,5 +1,4 @@
 local ffmpeg = require('ffmpeg')
-local result = require('monad.result')
 
 describe('ffmpeg', function()
   it('should not require Torch', function()
@@ -11,13 +10,13 @@ describe('ffmpeg', function()
     local n_video_frames = 418
 
     before_each(function()
-      video = result.of(ffmpeg.new, './test/data/centaur_1.mpg')
+      video = ffmpeg.new('./test/data/centaur_1.mpg')
     end)
 
     describe(':duration', function()
       it('should return video duration in seconds', function()
         local expected = 14.0
-        local actual = video:duration():get()
+        local actual = video:duration()
         assert.is_near(expected, actual, 1.0)
       end)
     end)
@@ -25,44 +24,32 @@ describe('ffmpeg', function()
     describe(':pixel_format_name', function()
       it('should return pixel format name as a string', function()
         local expected = 'yuv420p'
-        local actual = video:pixel_format_name():get()
+        local actual = video:pixel_format_name()
         assert.are.same(expected, actual)
       end)
     end)
 
-    -- describe(':each_frame', function()
-    --   it('should call callback function once per frame', function()
-    --     local i = 0
-    --     -- video:each_frame(function() i = i + 1 end)
-    --     local running = true
-    --     while running do
-    --       video:read_video_frame()
-    --       --local vid = video:get()
-    --       --local ok, res = pcall(vid.read_video_frame, vid)
-    --       --if ok then
-    --         i = i + 1
-    --       --else
-    --         running = false
-    --       --end
-    --     end
-    --     assert.are.same(n_video_frames, i)
-    --   end)
-    -- end)
+    describe(':each_frame', function()
+      it('should call callback function once per frame', function()
+        local i = 0
+        video:each_frame(function() i = i + 1 end)
+        assert.are.same(n_video_frames, i)
+      end)
+    end)
 
     describe(':read_video_frame', function()
-      it('should call and_then callback after successful frame read', function()
-        local success_function = spy.new(function() end)
-        video:read_video_frame():and_then(success_function)
-        assert.spy(success_function).was.called()
+      it('should read first frame successfully', function()
+        local ok = pcall(video.read_video_frame, video)
+        assert.is_truthy(ok)
       end)
 
       it('should return error after end of stream is reached', function()
-        local catch_function = spy.new(function() end)
+        local ok = true
         for i=0,n_video_frames do
-          assert.spy(catch_function).was_not.called()
-          video:read_video_frame():catch(catch_function)
+          assert.is_truthy(ok)
+          ok = pcall(video.read_video_frame, video)
         end
-        assert.spy(catch_function).was.called()
+        assert.is_falsy(ok)
       end)
     end)
 
@@ -83,16 +70,10 @@ describe('ffmpeg', function()
           '                       ...              '
         }, '\n') .. '\n'
 
-        local actual = '<unset>'
-
-        video
+        local actual = video
           :filter('gray', 'scale=40:12')
           :read_video_frame()
           :to_ascii()
-          :and_then(function(frame)
-            actual = frame
-          end)
-          :done()
 
         assert.are.same(expected, actual)
       end)

@@ -24,7 +24,6 @@ build = {
   type = "builtin",
   modules = {
     ["ffmpeg"] = "src/ffmpeg/ffmpeg.lua",
-    ["ffmpeg.torch"] = "src/ffmpeg/torch.lua",
-    ["monad"] = "src/monad/monad.lua"
+    ["ffmpeg.torch"] = "src/ffmpeg/torch.lua"
   }
 }

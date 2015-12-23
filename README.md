@@ -6,16 +6,12 @@ LuaJIT FFI bindings to FFmpeg libraries.
 
     local ffmpeg = require('ffmpeg')
 
-    ffmpeg.new('./example.mpg')
+    local ascii_frame = ffmpeg.new('./example.mpg')
       :filter('gray', 'scale=40:12')
       :read_video_frame()
       :to_ascii()
-      :and_then(function(ascii_frame)
-        print(ascii_frame)
-      end)
-      :catch(function(err)
-        print('An error occurred: ' .. err)
-      end)
+
+    print(ascii_frame)
 
 ### Torch
 
@@ -23,12 +19,9 @@ If you have Torch installed, load the enhanced version of the library.
 
     local ffmpeg = require('ffmpeg.torch')
 
-    local first_frame_tensor = ffmpeg.new('./example.mpg')
+    local byte_tensor = ffmpeg.new('./example.mpg')
       :filter('rgb24', 'scale=512:512')
       :read_video_frame()
       :to_byte_tensor()
-      :catch(function(err)
-        -- Use the Lena image in case of error
-        return image:lena()
-      end)
-      :get()
+
+    local float_tensor = first_frame_tensor:float():div(255)
