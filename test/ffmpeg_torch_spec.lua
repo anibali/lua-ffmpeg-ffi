@@ -1,7 +1,3 @@
-if not pcall(require, 'torch') then
-  error('Torch module must be installed to use ffmpeg.torch')
-end
-
 local ffmpeg = require('ffmpeg.torch')
 
 describe('ffmpeg.torch', function()
@@ -22,31 +18,20 @@ describe('ffmpeg.torch', function()
           {0, 18, 0}
         }}
 
-        local actual = '<unset>'
-
-        video
+        local actual = video
           :filter('gray', 'scale=3:3')
           :read_video_frame()
           :to_byte_tensor()
-          :and_then(function(tensor)
-            actual = tensor:totable()
-          end)
-          :get()
+          :totable()
 
         assert.are.same(expected, actual)
       end)
 
       it('should convert RGB frame into a 3-channel byte tensor', function()
-        local actual_tensor = '<unset>'
-
-        video
+        local actual_tensor = video
           :filter('rgb24', 'scale=16:16')
           :read_video_frame()
           :to_byte_tensor()
-          :and_then(function(tensor)
-            actual_tensor = tensor
-          end)
-          :get()
 
         assert.are.same(actual_tensor:size():totable(), {3, 16, 16})
       end)

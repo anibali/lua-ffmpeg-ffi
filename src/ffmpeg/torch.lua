@@ -7,13 +7,15 @@
 -- @license MIT
 -- @copyright Aiden Nibali 2015
 
-if not pcall(require, 'torch') then
-  error('Torch module must be installed to use ffmpeg.torch')
-end
-
 local ffmpeg = require('ffmpeg')
 local ffi = require('ffi')
 local bit = require('bit')
+
+-- FIXME: Can't put this before ffmpeg require, probably some FFI interference
+-- going on
+if not pcall(require, 'torch') then
+  error('Torch module must be installed to use ffmpeg.torch')
+end
 
 local PIX_FMT_PLANAR = 16
 local PIX_FMT_RGB = 32

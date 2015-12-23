@@ -6,7 +6,6 @@
 -- @copyright Aiden Nibali 2015
 
 local ffi = require('ffi')
-local monad = require('monad')
 
 local M = {}
 local Video = {}
@@ -159,6 +158,7 @@ local function create_frame_reader(self)
             coroutine.yield(frame[0], 'video')
           end
         end
+
       else
         -- TODO: Audio frames
       end
@@ -171,14 +171,14 @@ end
 ---- Opens a video file for reading.
 --
 -- @string path A relative or absolute path to the video file.
--- @treturn monad.Result A `Video`.
+-- @treturn Video
 function M.new(path)
   local self = {is_filtered = false}
   setmetatable(self, {__index = Video})
 
   self.format_context = ffi.new('AVFormatContext*[1]')
   if libavformat.avformat_open_input(self.format_context, path, nil, nil) < 0 then
-    return monad.Error()('Failed to open video input for ' .. path)
+    error('Failed to open video input for ' .. path)
   end
 
   -- Release format context when collected by the GC
@@ -186,7 +186,7 @@ function M.new(path)
 
   -- Calculate info about the stream
   if libavformat.avformat_find_stream_info(self.format_context[0], nil) < 0 then
-    return monad.Error()('Failed to find stream info for ' .. path)
+    error('Failed to find stream info for ' .. path)
   end
 
   -- Select video stream
@@ -194,13 +194,13 @@ function M.new(path)
   self.video_stream_index = libavformat.av_find_best_stream(
     self.format_context[0], libavformat.AVMEDIA_TYPE_VIDEO, -1, -1, decoder, 0)
   if self.video_stream_index < 0 then
-    return monad.Error()('Failed to find video stream for ' .. path)
+    error('Failed to find video stream for ' .. path)
   end
 
   self.video_decoder_context = self.format_context[0].streams[self.video_stream_index].codec
 
   if libavcodec.avcodec_open2(self.video_decoder_context, decoder[0], nil) < 0 then
-    return monad.Error()('Failed to open video decoder')
+    error('Failed to open video decoder')
   end
 
   -- Release decoder context when collected by the GC
@@ -209,7 +209,7 @@ function M.new(path)
   -- -- Print format info
   -- libavformat.av_dump_format(self.format_context[0], 0, path, 0)
 
-  return monad.Value()(self)
+  return self
 end
 
 --- A Video class.
@@ -223,7 +223,7 @@ end
 -- @string[opt='null'] filterchain The filterchain to be applied. Refer to the
 -- [libav documentation](https://libav.org/documentation/libavfilter.html)
 -- for the syntax of this string.
--- @treturn monad.Result A copy of this `Video` with the specified filter set
+-- @treturn Video A copy of this `Video` with the specified filter set
 -- up.
 --
 -- @usage
@@ -260,26 +260,26 @@ function Video:filter(pixel_format_name, filterchain)
   if libavfilter.avfilter_graph_create_filter(
     buffersrc_context, buffersrc, 'in', args, nil, filter_graph[0]) < 0
   then
-    return monad.Error()('Failed to create buffer source')
+    error('Failed to create buffer source')
   end
 
   local buffersink_context = ffi.new('AVFilterContext*[1]');
   if libavfilter.avfilter_graph_create_filter(
     buffersink_context, buffersink, 'out', nil, nil, filter_graph[0]) < 0
   then
-    return monad.Error()('Failed to create buffer sink')
+    error('Failed to create buffer sink')
   end
 
   local pix_fmt = libavutil.av_get_pix_fmt(pixel_format_name)
   if pix_fmt == libavutil.AV_PIX_FMT_NONE then
-    return monad.Error()('Invalid pixel format name: ' .. pixel_format_name)
+    error('Invalid pixel format name: ' .. pixel_format_name)
   end
   local pix_fmts = ffi.new('enum AVPixelFormat[1]', {pix_fmt})
   if libavutil.av_opt_set_bin(buffersink_context[0],
     'pix_fmts', ffi.cast('const unsigned char*', pix_fmts),
     1 * ffi.sizeof('enum AVPixelFormat'), AV_OPT_SEARCH_CHILDREN) < 0
   then
-    return monad.Error()('Failed to set output pixel format')
+    error('Failed to set output pixel format')
   end
 
   outputs[0].name       = libavutil.av_strdup('in');
@@ -294,11 +294,11 @@ function Video:filter(pixel_format_name, filterchain)
   if libavfilter.avfilter_graph_parse_ptr(filter_graph[0], filterchain,
     inputs, outputs, nil) < 0
   then
-    return monad.Error()('avfilter_graph_parse_ptr failed')
+    error('avfilter_graph_parse_ptr failed')
   end
 
   if libavfilter.avfilter_graph_config(filter_graph[0], nil) < 0 then
-    return monad.Error()('avfilter_graph_config failed')
+    error('avfilter_graph_config failed')
   end
 
   video.filter_graph = filter_graph
@@ -306,7 +306,7 @@ function Video:filter(pixel_format_name, filterchain)
   video.buffersink_context = buffersink_context
   video.is_filtered = true
 
-  return monad.Value()(video)
+  return video
 end
 
 ---- Gets the video duration in seconds.
@@ -320,23 +320,23 @@ function Video:pixel_format_name()
 end
 
 ---- Reads the next video frame.
--- @treturn monad.Result A `VideoFrame`.
+-- @treturn VideoFrame
 function Video:read_video_frame()
   self.frame_reader = self.frame_reader or create_frame_reader(self)
 
   while true do
     if coroutine.status(self.frame_reader) == 'dead' then
-      return monad.Error()('End of stream')
+      error('End of stream')
     end
 
     local ok, frame, frame_type = coroutine.resume(self.frame_reader)
 
     if not ok then
-      return monad.Error()(frame)
+      error(frame)
     end
 
     if frame_type == 'video' then
-      return monad.Value()(new_video_frame(frame))
+      return new_video_frame(frame)
     end
   end
 end
@@ -348,9 +348,12 @@ function Video:each_frame(video_callback, audio_callback)
 
   local running = true
   while running do
-    self:read_video_frame():and_then(video_callback):catch(function(err)
+    local ok, res = pcall(self.read_video_frame, self)
+    if ok then
+      video_callback(res)
+    else
       running = false
-    end)
+    end
   end
 end
 

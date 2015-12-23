@@ -1,0 +1,471 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<head>
+    <title>ffmpeg-ffi docs</title>
+    <link rel="stylesheet" href="../ldoc.css" type="text/css" />
+</head>
+<body>
+
+<div id="container">
+
+<div id="product">
+	<div id="product_logo"></div>
+	<div id="product_name"><big><b></b></big></div>
+	<div id="product_description"></div>
+</div> <!-- id="product" -->
+
+
+<div id="main">
+
+
+<!-- Menu -->
+
+<div id="navigation">
+<br/>
+<h1>ffmpeg-ffi</h1>
+
+<ul>
+  <li><a href="../index.html">Index</a></li>
+</ul>
+
+<h2>Contents</h2>
+<ul>
+<li><a href="#Functions">Functions</a></li>
+<li><a href="#Class_ErrorMonad">Class ErrorMonad </a></li>
+<li><a href="#Class_Value">Class Value </a></li>
+</ul>
+
+
+<h2>Modules</h2>
+<ul class="$(kind=='Topics' and '' or 'nowrap'">
+  <li><a href="../modules/ffmpeg.html">ffmpeg</a></li>
+  <li><a href="../modules/ffmpeg.torch.html">ffmpeg.torch</a></li>
+  <li><a href="../modules/monad.html">monad</a></li>
+  <li><strong>monad.result</strong></li>
+</ul>
+<h2>Topics</h2>
+<ul class="$(kind=='Topics' and '' or 'nowrap'">
+  <li><a href="../topics/README.md.html">README</a></li>
+  <li><a href="../topics/LICENSE.html">LICENSE</a></li>
+</ul>
+
+</div>
+
+<div id="content">
+
+<h1>Module <code>monad.result</code></h1>
+<p>A theoretical union type for <a href="../modules/monad.result.html#Value">Value</a> and <a href="../modules/monad.result.html#Error">Error</a>.</p>
+<p> For example, if a function is documented as returning a <a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a> <code>Result</code>,
+ this means that it returns a <a href="../modules/monad.result.html#Value">Value</a> wrapping a <a href="http://www.lua.org/manual/5.1/manual.html#5.4">string</a> on success, or an
+ <a href="../modules/monad.result.html#Error">Error</a> otherwise.</p>
+
+<p> Here's an example of using a function that returns a <code>Result</code>:</p>
+
+
+<pre>
+some_function():and_then(<span class="keyword">function</span>(value)
+  <span class="global">print</span>(<span class="string">'some_function returned '</span> .. value)
+<span class="keyword">end</span>):catch(<span class="keyword">function</span>(error_message))
+  <span class="global">print</span>(<span class="string">'Error calling some_function: '</span> .. error_message)
+<span class="keyword">end</span>)
+</pre>
+
+<p> However, the real beauty of this approach comes with chaining calls:</p>
+
+
+<pre>
+create_a_shape()
+  :scale(<span class="number">2</span>)
+  :rotate(<span class="number">45</span>)
+  :translate(<span class="number">10</span>, <span class="number">5</span>)
+  :catch(<span class="keyword">function</span>(error_message))
+    <span class="global">print</span>(<span class="string">'Error creating and transforming shape: '</span> .. error_message)
+  <span class="keyword">end</span>)
+</pre>
+
+<p> In the above example we assume that create<em>a</em>shape() returns a <code>Result</code>.
+ If any of the steps along the way fails, no further methods will be called
+ and the catch function will be triggered. If all of the steps are successful,
+ the catch function will not be called.</p>
+
+<p> At some point you may want to unwrap a <a href="../modules/monad.result.html#Value">Value</a> to get the actual value inside
+ of it. A good pattern for doing this is as follows:</p>
+
+
+<pre>
+<span class="keyword">local</span> my_shape = create_a_shape()
+  :scale(<span class="number">2</span>)
+  :rotate(<span class="number">45</span>)
+  :translate(<span class="number">10</span>, <span class="number">5</span>)
+  :catch(<span class="keyword">function</span>(error_message))
+    <span class="keyword">return</span> default_shape
+  <span class="keyword">end</span>)
+  :get()
+</pre>
+
+<p> <code>:get</code> is a special function which returns the value wrapped by a <a href="../modules/monad.result.html#Value">Value</a>.
+ But be careful! If you call <a href="../modules/monad.result.html#m:get">get</a> on an <a href="../modules/monad.result.html#Error">Error</a> then a Lua error will be
+ raised - this is why in the example above we make sure that we make a
+ default value available in the case of an <a href="../modules/monad.result.html#Error">Error</a>.</p>
+    <h3>Info:</h3>
+    <ul>
+        <li><strong>Copyright</strong>: Aiden Nibali 2015</li>
+        <li><strong>License</strong>: MIT</li>
+        <li><strong>Author</strong>: Aiden Nibali</li>
+    </ul>
+
+
+<h2><a href="#Functions">Functions</a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#Error">Error ()</a></td>
+	<td class="summary">Returns a factory for making <a href="../modules/monad.result.html#Error">Error</a> monads.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#Value">Value ()</a></td>
+	<td class="summary">Returns a factory for making <a href="../modules/monad.result.html#Value">Value</a> monads.</td>
+	</tr>
+</table>
+<h2><a href="#Class_ErrorMonad">Class ErrorMonad </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#m:done">m:done (...)</a></td>
+	<td class="summary">Alias for <code>Error:get</code></td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#m:get">m:get ()</a></td>
+	<td class="summary">Rethrows the error.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#m:catch">m:catch (callback)</a></td>
+	<td class="summary">Calls function <code>callback</code> with the error message.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#m:and_then">m:and_then (callback)</a></td>
+	<td class="summary">Returns self (<code>callback</code> is <em>not</em> called).</td>
+	</tr>
+</table>
+<h2><a href="#Class_Value">Class Value </a></h2>
+<table class="function_list">
+	<tr>
+	<td class="name" nowrap><a href="#m:done">m:done (...)</a></td>
+	<td class="summary">Alias for <code>Value:get</code></td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#m:get">m:get ()</a></td>
+	<td class="summary">Returns the wrapped value.</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#m:catch">m:catch (callback)</a></td>
+	<td class="summary">Returns self (<code>callback</code> is <em>not</em> called).</td>
+	</tr>
+	<tr>
+	<td class="name" nowrap><a href="#m:and_then">m:and_then (callback)</a></td>
+	<td class="summary">Calls function <code>callback</code> with the wrapped value.</td>
+	</tr>
+</table>
+
+<br/>
+<br/>
+
+
+    <h2 class="section-header "><a name="Functions"></a>Functions</h2>
+
+    <dl class="function">
+    <dt>
+    <a name = "Error"></a>
+    <strong>Error ()</strong>
+    </dt>
+    <dd>
+    Returns a factory for making <a href="../modules/monad.result.html#Error">Error</a> monads.
+
+
+
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">
+ <span class="keyword">local</span> error_factory = monad.Error()
+ <span class="keyword">local</span> error_monad = error_factory(<span class="string">'An error occurred!'</span>)</pre>
+    </ul>
+
+</dd>
+    <dt>
+    <a name = "Value"></a>
+    <strong>Value ()</strong>
+    </dt>
+    <dd>
+    Returns a factory for making <a href="../modules/monad.result.html#Value">Value</a> monads.
+
+
+
+
+
+
+    <h3>Usage:</h3>
+    <ul>
+        <pre class="example">
+ <span class="keyword">local</span> value_factory = monad.Value()
+ <span class="keyword">local</span> value_monad = value_factory(<span class="number">42</span>)</pre>
+    </ul>
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_ErrorMonad"></a>Class ErrorMonad </h2>
+
+          <div class="section-description">
+
+<p>A monad which represents an error result. </p>
+
+<p> An <a href="../modules/monad.result.html#ErrorMonad">ErrorMonad</a> will:</p>
+
+<ul>
+    <li>Throw an error when <code>:get</code> or <code>:done</code> is called on it.</li>
+    <li>Call the function <code>callback</code> with the error message when <code>:catch(callback)</code>
+    is called on it.</li>
+    <li>Return itself in response to all other method calls.</li>
+</ul>
+
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "m:done"></a>
+    <strong>m:done (...)</strong>
+    </dt>
+    <dd>
+    Alias for <code>Error:get</code>
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">...</span>
+
+
+
+        </li>
+    </ul>
+
+
+
+    <h3>See also:</h3>
+    <ul>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "m:get"></a>
+    <strong>m:get ()</strong>
+    </dt>
+    <dd>
+    Rethrows the error.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+        Nothing, since this method always throws an error.
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "m:catch"></a>
+    <strong>m:catch (callback)</strong>
+    </dt>
+    <dd>
+    Calls function <code>callback</code> with the error message.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">callback</span>
+            <span class="types"><span class="type">func</span></span>
+
+
+
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">Result</span></span>
+        The result of calling <code>callback</code>.
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "m:and_then"></a>
+    <strong>m:and_then (callback)</strong>
+    </dt>
+    <dd>
+    Returns self (<code>callback</code> is <em>not</em> called).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">callback</span>
+            <span class="types"><span class="type">func</span></span>
+
+
+
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="../modules/monad.result.html#ErrorMonad">ErrorMonad</a></span>
+        Self.
+    </ol>
+
+
+
+
+</dd>
+</dl>
+    <h2 class="section-header has-description"><a name="Class_Value"></a>Class Value </h2>
+
+          <div class="section-description">
+
+<p>A monad which represents a successful result value. </p>
+
+<p> A <a href="../modules/monad.result.html#Value">Value</a> monad will:</p>
+
+<ul>
+    <li>Return its wrapped value when <code>:get</code> or <code>:done</code> is called on it.</li>
+    <li>Call the function <code>callback</code> with the wrapped value when
+    <code>:and_then(callback)</code> is called on it.</li>
+    <li>Return itself in response to <code>:catch()</code>.</li>
+    <li>Delegate to the wrapped value in response to all other method calls and
+    present the return value as a <code>Result</code>.</li>
+</ul>
+
+
+          </div>
+    <dl class="function">
+    <dt>
+    <a name = "m:done"></a>
+    <strong>m:done (...)</strong>
+    </dt>
+    <dd>
+    Alias for <code>Value:get</code>
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">...</span>
+
+
+
+        </li>
+    </ul>
+
+
+
+    <h3>See also:</h3>
+    <ul>
+    </ul>
+
+
+</dd>
+    <dt>
+    <a name = "m:get"></a>
+    <strong>m:get ()</strong>
+    </dt>
+    <dd>
+    Returns the wrapped value.
+
+
+
+    <h3>Returns:</h3>
+    <ol>
+
+        The wrapped value.
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "m:catch"></a>
+    <strong>m:catch (callback)</strong>
+    </dt>
+    <dd>
+    Returns self (<code>callback</code> is <em>not</em> called).
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">callback</span>
+            <span class="types"><span class="type">func</span></span>
+
+
+
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><a class="type" href="../modules/monad.result.html#Value">Value</a></span>
+        Self.
+    </ol>
+
+
+
+
+</dd>
+    <dt>
+    <a name = "m:and_then"></a>
+    <strong>m:and_then (callback)</strong>
+    </dt>
+    <dd>
+    Calls function <code>callback</code> with the wrapped value.
+
+
+    <h3>Parameters:</h3>
+    <ul>
+        <li><span class="parameter">callback</span>
+            <span class="types"><span class="type">func</span></span>
+
+
+
+        </li>
+    </ul>
+
+    <h3>Returns:</h3>
+    <ol>
+
+           <span class="types"><span class="type">Result</span></span>
+        The result of calling <code>callback</code>.
+    </ol>
+
+
+
+
+</dd>
+</dl>
+
+
+</div> <!-- id="content" -->
+</div> <!-- id="main" -->
+<div id="about">
+<i>generated by <a href="http://github.com/stevedonovan/LDoc">LDoc 1.4.3</a></i>
+<i style="float:right;">Last updated 2015-12-21 10:51:14 </i>
+</div> <!-- id="about" -->
+</div> <!-- id="container" -->
+</body>
+</html>

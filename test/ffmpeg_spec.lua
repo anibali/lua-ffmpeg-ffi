@@ -16,7 +16,7 @@ describe('ffmpeg', function()
     describe(':duration', function()
       it('should return video duration in seconds', function()
         local expected = 14.0
-        local actual = video:duration():get()
+        local actual = video:duration()
         assert.is_near(expected, actual, 1.0)
       end)
     end)
@@ -24,7 +24,7 @@ describe('ffmpeg', function()
     describe(':pixel_format_name', function()
       it('should return pixel format name as a string', function()
         local expected = 'yuv420p'
-        local actual = video:pixel_format_name():get()
+        local actual = video:pixel_format_name()
         assert.are.same(expected, actual)
       end)
     end)
@@ -38,19 +38,18 @@ describe('ffmpeg', function()
     end)
 
     describe(':read_video_frame', function()
-      it('should call and_then callback after successful frame read', function()
-        local success_function = spy.new(function() end)
-        video:read_video_frame():and_then(success_function)
-        assert.spy(success_function).was.called()
+      it('should read first frame successfully', function()
+        local ok = pcall(video.read_video_frame, video)
+        assert.is_truthy(ok)
       end)
 
       it('should return error after end of stream is reached', function()
-        local catch_function = spy.new(function() end)
+        local ok = true
         for i=0,n_video_frames do
-          assert.spy(catch_function).was_not.called()
-          video:read_video_frame():catch(catch_function)
+          assert.is_truthy(ok)
+          ok = pcall(video.read_video_frame, video)
         end
-        assert.spy(catch_function).was.called()
+        assert.is_falsy(ok)
       end)
     end)
 
@@ -71,30 +70,24 @@ describe('ffmpeg', function()
           '                       ...              '
         }, '\n') .. '\n'
 
-        local actual = '<unset>'
-
-        video
+        local actual = video
           :filter('gray', 'scale=40:12')
           :read_video_frame()
           :to_ascii()
-          :and_then(function(frame)
-            actual = frame
-          end)
-          :done()
 
         assert.are.same(expected, actual)
       end)
-    end)
 
-    -- it('ascii video fun', function()
-    --   local i = 0
-    --   io.write('\027[H\027[2J')
-    --   video:filter('gray', 'scale=80:24')
-    --   video:each_frame(function(frame)
-    --     io.write(video:frame_to_ascii(frame))
-    --     os.execute('sleep 1')
-    --     i = i + 1
-    --   end)
-    -- end)
+      -- it('ascii video fun', function()
+      --   local i = 0
+      --   io.write('\027[H\027[2J')
+      --   video:filter('gray', 'scale=80:24')
+      --   video:each_frame(function(frame)
+      --     io.write(video:frame_to_ascii(frame))
+      --     os.execute('sleep 1')
+      --     i = i + 1
+      --   end)
+      -- end)
+    end)
   end)
 end)
